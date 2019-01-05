@@ -1,3 +1,5 @@
 final/
 img/
 log
+*.swp
+config.txt

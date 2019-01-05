@@ -52,7 +52,7 @@ eval $cmd
 
 # create mp4 using ffmpeg
 today=`date +"%Y%m%d"`
-ffmpeg -pattern_type glob -i "$ROOT/img/$today*.jpg" -c:v libx264 -pix_fmt yuv420p $ROOT/final/$today.mp4
+ffmpeg -pattern_type glob -i "$ROOT/img/$today*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease $ROOT/final/$today.mp4
 
 # Use imagemagik to do JPG -> GIF
 #echo 'Converting...'
