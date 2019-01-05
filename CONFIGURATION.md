@@ -21,6 +21,9 @@ test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  
 # imgagemagick
 `sudo apt-get install imagemagick`
 
+# jq
+`sudo apt-get install jq`
+
 # twurl
 `sudo gem install twurl`
 
@@ -30,3 +33,15 @@ test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  
 # set up cron job
 using `crontab -e` create a job to run every morning at 1AM
 `0 1 * * * /home/pi/SunsetCam/scheduler.sh`
+
+# authorize the twitter account
+```
+CONFIG_FILE="config.txt" 
+if [ ! -f $CONFIG_FILE ]; then
+     echo "Configuration file not found! Exiting..."
+     exit 1
+fi 
+source $CONFIG_FILE
+twurl authorize --consumer-key $TWITTER_API_KEY --consumer-secret $TWITTER_API_SECRET_KEY
+```
+follow instructions shown at prompt (go to twitter URL, authenticate, enter PIN)
