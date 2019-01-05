@@ -14,7 +14,16 @@
 ###   * take a pre-shot in program or priority mode to get exposure right
 ###   * periodically take exposure shots to test/adjust shutter/aperture?
 
-echo "`date`: Executing photo capture" >> /home/pi/SunsetCam/log
+### READ CONFIGURATION FILE
+CONFIG_FILE="config.txt"  
+if [ ! -f $CONFIG_FILE ]; then
+     echo "Configuration file not found! Exiting..."
+     exit 1 
+fi  
+source $CONFIG_FILE
+
+
+echo "`date`: Executing photo capture" >> $LOG_FILE
 
 # Initialize parameters
 num=120
@@ -33,7 +42,7 @@ while getopts ":i:n:" opt; do
 done
 
 # Set and print command
-cmd='gphoto2 --set-config imagesize=2 --set-config imagequality=1 --set-config expprogram 1; gphoto2 --capture-image-and-download --filename "/home/pi/SunsetCam/img/%Y%m%d%H%M%S.jpg" -I $interval -F $num'
+cmd='gphoto2 --set-config imagesize=2 --set-config imagequality=1 --set-config expprogram 1; gphoto2 --capture-image-and-download --filename "$ROOT/img/%Y%m%d%H%M%S.jpg" -I $interval -F $num'
 printf "Argument interval is %s\n" "$interval"
 printf "Argument num is %s\n" "$num"
 printf "Argument cmd is %s\n" "$cmd"
@@ -41,10 +50,14 @@ printf "Argument cmd is %s\n" "$cmd"
 # Execute command
 eval $cmd
 
-# Use imagemagik to do JPG -> GIF
-echo 'Converting...'
+# create mp4 using ffmpeg
 today=`date +"%Y%m%d"`
-convert -resize 50% -delay 5 -loop 0 /home/pi/SunsetCam/img/$today*.jpg /home/pi/SunsetCam/final/$today.gif
+ffmpeg -pattern_type glob -i "$ROOT/img/$today*.jpg" -c:v libx264 -pix_fmt yuv420p $ROOT/final/$today.mp4
+
+# Use imagemagik to do JPG -> GIF
+#echo 'Converting...'
+#today=`date +"%Y%m%d"`
+#convert -resize 50% -delay 5 -loop 0 /home/pi/SunsetCam/img/$today*.jpg /home/pi/SunsetCam/final/$today.gif
 
 ### example of posting to twitter
 # twurl authorize --consumer-key KEY --consumer-secret SECRET
