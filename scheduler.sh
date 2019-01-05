@@ -1,10 +1,18 @@
 #!/bin/bash
 
+### READ CONFIGURATION FILE
+CONFIG_FILE="config.txt"  
+if [ ! -f $CONFIG_FILE ]; then
+     echo "Configuration file not found! Exiting..."
+     exit 1 
+fi  
+source $CONFIG_FILE
+
 ### GET SUNSET TIME
 
 # Option #1: use R
-sunset=`Rscript /home/pi/SunsetGIF/getSunsetTime.r`
-echo "sunset: $sunset" >> /home/pi/SunsetGIF/log
+sunset=`Rscript $ROOT/getSunsetTime.r`
+echo "sunset: $sunset" >> $LOG_FILE
 
 # Option #2: use web services
 #todaydate=`date +%F`
@@ -14,11 +22,11 @@ echo "sunset: $sunset" >> /home/pi/SunsetGIF/log
 ### the above commands should be used to tun this script at a certain time using 'at'
 
 executionTime=`date -d "$sunset -10 min" +"%Y%m%d%H%M"`
-echo "`date`: Logging command to execute at: $executionTime" >> /home/pi/SunsetGIF/log 
+echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 
 
 ### schedule photo capture
 
-#echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetGIF/log" | at -t $executionTime
-echo "bash /home/pi/SunsetGIF/SunsetGIF.sh >> /home/pi/SunsetGIF/log" | at -t $executionTime
+#echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
+echo "bash /home/pi/SunsetCam/SunsetCam.sh >> $LOGFILE" | at -t $executionTime
 
