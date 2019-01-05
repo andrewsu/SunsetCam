@@ -1,20 +1,20 @@
 #!/bin/bash
 
 ###
-### SunsetGIF.sh
+### SunsetCam.sh
 ###
 ### Automate the creation of a time lapse gif using gphoto2
 ### 
 ### Andrew Su 2018-12-21
 ###
 
-### USAGE: ./SunsetGIF.sh [-i <interval -- time between shots>] [-n <total number of shots to take>]
+### USAGE: ./SunsetCam.sh [-i <interval -- time between shots>] [-n <total number of shots to take>]
 
 ### TODO
 ###   * take a pre-shot in program or priority mode to get exposure right
 ###   * periodically take exposure shots to test/adjust shutter/aperture?
 
-echo "`date`: Executing photo capture" >> /home/pi/SunsetGIF/log
+echo "`date`: Executing photo capture" >> /home/pi/SunsetCam/log
 
 # Initialize parameters
 num=120
@@ -33,7 +33,7 @@ while getopts ":i:n:" opt; do
 done
 
 # Set and print command
-cmd='gphoto2 --set-config imagesize=2 --set-config imagequality=1 --set-config expprogram 1; gphoto2 --capture-image-and-download --filename "/home/pi/SunsetGIF/img/%Y%m%d%H%M%S.jpg" -I $interval -F $num'
+cmd='gphoto2 --set-config imagesize=2 --set-config imagequality=1 --set-config expprogram 1; gphoto2 --capture-image-and-download --filename "/home/pi/SunsetCam/img/%Y%m%d%H%M%S.jpg" -I $interval -F $num'
 printf "Argument interval is %s\n" "$interval"
 printf "Argument num is %s\n" "$num"
 printf "Argument cmd is %s\n" "$cmd"
@@ -44,7 +44,7 @@ eval $cmd
 # Use imagemagik to do JPG -> GIF
 echo 'Converting...'
 today=`date +"%Y%m%d"`
-convert -resize 50% -delay 5 -loop 0 /home/pi/SunsetGIF/img/$today*.jpg /home/pi/SunsetGIF/final/$today.gif
+convert -resize 50% -delay 5 -loop 0 /home/pi/SunsetCam/img/$today*.jpg /home/pi/SunsetCam/final/$today.gif
 
 ### example of posting to twitter
 # twurl authorize --consumer-key KEY --consumer-secret SECRET
