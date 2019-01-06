@@ -31,8 +31,8 @@ test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  
 `git clone https://github.com/andrewsu/SunsetCam.git`
 
 # set up cron job
-using `crontab -e` create a job to run every morning at 1AM
-`0 1 * * * /home/pi/SunsetCam/scheduler.sh`
+using `crontab -e` create a job *like this* to run every morning at 1AM
+`0 1 * * * cd /home/pi/SunsetCam && ./scheduler.sh`
 
 # authorize the twitter account
 ```
