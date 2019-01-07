@@ -26,8 +26,8 @@ source $CONFIG_FILE
 echo "`date`: Executing photo capture" >> $LOG_FILE
 
 # Initialize parameters
-num=120
-interval=10
+num=240
+interval=5
 
 # read in command-line options
 while getopts ":i:n:" opt; do
