@@ -25,6 +25,10 @@ source $CONFIG_FILE
 
 echo "`date`: Executing photo capture" >> $LOG_FILE
 
+# Kill processes that lock gphoto2
+pkill gvfs-gphoto2
+pkill gvfsd-gphoto2
+
 # Initialize parameters
 num=240
 interval=5
@@ -42,7 +46,7 @@ while getopts ":i:n:" opt; do
 done
 
 # Set and print command
-cmd='gphoto2 --set-config imagesize=2 --set-config imagequality=1; gphoto2 --capture-image-and-download --filename "$ROOT/img/%Y%m%d%H%M%S.jpg" -I $interval -F $num'
+cmd="gphoto2 --set-config imagesize=2 --set-config imagequality=1; gphoto2 --capture-image-and-download --filename \"$ROOT/img/%Y%m%d%H%M%S.jpg\" -I $interval -F $num"
 printf "Argument interval is %s\n" "$interval"
 printf "Argument num is %s\n" "$num"
 printf "Argument cmd is %s\n" "$cmd"
