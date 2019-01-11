@@ -30,7 +30,7 @@ pkill gvfs-gphoto2
 pkill gvfsd-gphoto2
 
 # Initialize parameters
-num=240
+num=360
 interval=5
 
 # read in command-line options
@@ -59,4 +59,4 @@ today=`date +"%Y%m%d"`
 ffmpeg -pattern_type glob -i "$ROOT/img/$today*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease" $ROOT/final/$today.mp4
 
 # upload movie to twitter
-$ROOT/uploadToTwitter.sh final/$today.mp4
+$ROOT/uploadToTwitter.sh $ROOT/final/$today.mp4

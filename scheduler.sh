@@ -21,7 +21,7 @@ echo "sunset: $sunset" >> $LOG_FILE
 
 ### the above commands should be used to tun this script at a certain time using 'at'
 
-executionTime=`date -d "$sunset -10 min" +"%Y%m%d%H%M"`
+executionTime=`date -d "$sunset -20 min" +"%Y%m%d%H%M"`
 echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 
 
