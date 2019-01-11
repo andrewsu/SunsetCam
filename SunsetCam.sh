@@ -23,11 +23,15 @@ fi
 source $CONFIG_FILE
 
 
-echo "`date`: Executing photo capture" >> $LOG_FILE
-
 # Kill processes that lock gphoto2
 pkill gvfs-gphoto2
 pkill gvfsd-gphoto2
+
+echo "`date`: calibrating exposure" >> $LOG_FILE
+$ROOT/getBestShutter.sh
+
+
+echo "`date`: Executing photo capture" >> $LOG_FILE
 
 # Initialize parameters
 num=360
@@ -55,6 +59,7 @@ printf "Argument cmd is %s\n" "$cmd"
 eval $cmd
 
 # create mp4 using ffmpeg
+echo "`date`: Creating mp4" >> $LOG_FILE
 today=`date +"%Y%m%d"`
 ffmpeg -pattern_type glob -i "$ROOT/img/$today*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease" $ROOT/final/$today.mp4
 
