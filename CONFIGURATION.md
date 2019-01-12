@@ -27,6 +27,11 @@ test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  
 # twurl
 `sudo gem install twurl`
 
+# install and configure ntp so time is automatically set on boot
+sudo apt install ntp
+sudo systemctl enable ntp
+sudo timedatectl set-ntp 1
+
 # clone repo
 `git clone https://github.com/andrewsu/SunsetCam.git`
 
