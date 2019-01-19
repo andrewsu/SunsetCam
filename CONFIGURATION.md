@@ -39,6 +39,15 @@ sudo timedatectl set-ntp 1
 using `crontab -e` create a job *like this* to run every morning at 1AM
 `0 1 * * * cd /home/pi/SunsetCam && ./scheduler.sh`
 
+# force time to update on boot
+
+add these lines to /etc/rc.local
+```
+/etc/init.d/ntp stop
+/usr/sbin/ntpd -q -g
+/etc/init.d/ntp start
+```
+
 # authorize the twitter account
 ```
 CONFIG_FILE="config.txt" 
