@@ -19,7 +19,7 @@ source $CONFIG_FILE
 lastNumColors=0
 
 # iterate through shutterspeed settings, starting with longest exposure, decreasing by 2/3 stop each time
-for ((i=8;i>=0;i=i-2)); do
+for ((i=36;i>=0;i=i-2)); do
     gphoto2 --set-config shutterspeed=$i
     gphoto2 --capture-image-and-download --force-overwrite --filename $ROOT/tmp/test.jpg
 
