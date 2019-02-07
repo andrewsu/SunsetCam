@@ -50,7 +50,7 @@ echo "Finalizing: $cmd"
 eval $cmd
 
 # POST
-cmd="/usr/local/bin/twurl -d \"status=Testing media upload&media_ids=${MEDIA_ID}\" /1.1/statuses/update.json"
+cmd="/usr/local/bin/twurl -d \"status=Today's sunset&media_ids=${MEDIA_ID}\" /1.1/statuses/update.json"
 echo "Posting: $cmd"
 eval $cmd
 
