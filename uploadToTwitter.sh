@@ -16,10 +16,25 @@ if [ ! -f $CONFIG_FILE ]; then
 fi  
 source $CONFIG_FILE
 
+# Initialize parameters
+message=""
+
+# read in command-line options
+while getopts ":m:f:" opt; do
+  case $opt in
+    m) message="$OPTARG"
+    ;;
+    f) file="$OPTARG"
+    ;;
+    \?) echo "Invalid option -$OPTARG" >&2
+    ;;
+  esac
+done
+
 
 echo "`date`: Uploading to twitter" >> $LOG_FILE
 
-MEDIA_FILE=$1
+MEDIA_FILE=$file
 echo "FILE: $MEDIA_FILE"
 
 # make sure MEDIA_FILE exists
@@ -50,7 +65,7 @@ echo "Finalizing: $cmd"
 eval $cmd
 
 # POST
-cmd="/usr/local/bin/twurl -d \"status=Today's sunset&media_ids=${MEDIA_ID}\" /1.1/statuses/update.json"
+cmd="/usr/local/bin/twurl -d \"status=$message&media_ids=${MEDIA_ID}\" /1.1/statuses/update.json"
 echo "Posting: $cmd"
 eval $cmd
 

@@ -51,7 +51,7 @@ done
 
 # create output directory
 today=`date +"%Y%m%d"`
-mkdir $ROOT/img/today
+mkdir $ROOT/img/$today
 
 # Set and print command
 cmd="gphoto2 --set-config imagesize=2 --set-config imagequality=1; gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" -I $interval -F $num"
@@ -60,11 +60,13 @@ printf "Argument num is %s\n" "$num"
 printf "Argument cmd is %s\n" "$cmd"
 
 # Execute command
+STARTTIME=`date "+%F %T"`
 eval $cmd
+ENDTIME=`date "+%T %Z"`
 
 # create mp4 using ffmpeg
 echo "`date`: Creating mp4" >> $LOG_FILE
-ffmpeg -pattern_type glob -i "$ROOT/img/$today/$today*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease" $ROOT/final/$today.mp4
+ffmpeg -y -pattern_type glob -i "$ROOT/img/$today/$today*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease" $ROOT/final/$today.mp4
 
 # upload movie to twitter
-$ROOT/uploadToTwitter.sh $ROOT/final/$today.mp4
+$ROOT/uploadToTwitter.sh -m "${STARTTIME} - ${ENDTIME}" -f $ROOT/final/$today.mp4
