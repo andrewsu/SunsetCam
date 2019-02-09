@@ -30,3 +30,21 @@ echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 #echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
 echo "bash /home/pi/SunsetCam/SunsetCam.sh >> $LOG_FILE" | at -t $executionTime
 
+
+### GET SUNRISE TIME
+
+# Option #1: use R
+sunrise=`Rscript $ROOT/getSunriseTime.r`
+echo "sunrise: $sunrise" >> $LOG_FILE
+
+### the above commands should be used to tun this script at a certain time using 'at'
+
+executionTime=`date -d "$sunrise -20 min" +"%Y%m%d%H%M"`
+echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
+
+
+### schedule photo capture
+
+#echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
+echo "bash /home/pi/SunsetCam/SunsetCam.sh >> $LOG_FILE" | at -t $executionTime
+
