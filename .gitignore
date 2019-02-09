@@ -4,3 +4,4 @@ tmp/
 log
 *.swp
 config.txt
+timelapse-deflicker.pl
