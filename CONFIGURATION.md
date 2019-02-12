@@ -21,6 +21,9 @@ test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  
 # imgagemagick
 `sudo apt-get install imagemagick`
 
+# ffmpeg
+`sudo apt-get install ffmpeg`
+
 # jq
 `sudo apt-get install jq`
 
