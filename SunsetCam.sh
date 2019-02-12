@@ -140,7 +140,7 @@ if [ $deflicker = 1 ]; then
 
     echo "`date`: deflickering images" >> $LOG_FILE
     cd $ROOT/img/$today
-    $ROOT/timelapse-deflicker.pl -p 2 -w 50
+    $ROOT/timelapse-deflicker.pl -p 2 -w 15
     cd $ROOT
     IMAGEDIR="$ROOT/img/$today/Deflickered"
 else 
