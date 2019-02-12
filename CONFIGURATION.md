@@ -22,6 +22,14 @@ test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  
 NOTE: the command below worked on raspbian, but on ubuntu needed to follow instructions at https://gist.github.com/witooh/089eeac4165dfb5ccf3d
 `sudo apt-get install graphicsmagick`
 
+# pgmagick
+not sure if we'll use the python library for graphicsmagick yet, but just in case, noting installation here... (a bit of a random assortment of libraries here -- will need to sort out exactly what's necessary...
+`sudo apt-get install libgraphicsmagick++1-dev libboost-python-dev`
+`sudo apt-get install libgraphicsmagick-q16-3`
+`sudo apt-get install libgraphicsmagick++-q16-12`
+`sudo apt-get install python-pgmagick`
+`pip install pgmagick`
+
 # ffmpeg
 `sudo apt-get install ffmpeg`
 
