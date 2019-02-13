@@ -46,5 +46,5 @@ echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 ### schedule photo capture
 
 #echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
-echo "bash /home/pi/SunsetCam/SunsetCam.sh -i 10 -n 240 -c 9 -e 1 -d 1 >> $LOG_FILE" | at -t $executionTime
+echo "bash /home/pi/SunsetCam/SunsetCam.sh -i 10 -n 240 -c 6 -e 1 -d 1 >> $LOG_FILE" | at -t $executionTime
 
