@@ -19,7 +19,6 @@ test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  
 	https://askubuntu.com/questions/993876/gphoto2-could-not-claim-the-usb-device
 
 # graphicsmagick
-NOTE: the command below worked on raspbian, but on ubuntu needed to follow instructions at https://gist.github.com/witooh/089eeac4165dfb5ccf3d
 `sudo apt-get install graphicsmagick`
 
 # ffmpeg
