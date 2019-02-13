@@ -4,7 +4,7 @@
 ### getBestShutter.sh
 ###
 ### given current aperture value, find best shutter speed (as estimated by number of unique
-### colors computed by graphicsmagick identify
+### colors computed by imagemagick identify
 ###
 ### AS 20190110
 
@@ -24,13 +24,13 @@ for ((i=36;i>=0;i=i-2)); do
     gphoto2 --capture-image-and-download --force-overwrite --filename $ROOT/tmp/test.jpg
 
     # because we're looking at sunset, let's create a new with with just the top half of the photo
-    HEIGHT=`gm identify -format %h $ROOT/tmp/test.jpg`
-    WIDTH=`gm identify -format %w $ROOT/tmp/test.jpg`
+    HEIGHT=`identify -format %h $ROOT/tmp/test.jpg`
+    WIDTH=`identify -format %w $ROOT/tmp/test.jpg`
     TOP=`expr $HEIGHT / 2`
-    gm convert -crop ${WIDTH}x${TOP}+0+0 $ROOT/tmp/test.jpg $ROOT/tmp/test_top.jpg
+    convert -crop ${WIDTH}x${TOP}+0+0 $ROOT/tmp/test.jpg $ROOT/tmp/test_top.jpg
 
-    # use graphicsmagick to get number of unique colors -- see https://imagemagick.org/script/escape.php
-    numColors=`gm identify -format %k $ROOT/tmp/test_top.jpg`
+    # use imagemagick to get number of unique colors -- see https://imagemagick.org/script/escape.php
+    numColors=`identify -format %k $ROOT/tmp/test_top.jpg`
     echo "Shutter speed setting $i has $numColors unique colors"
     rm $ROOT/tmp/test.jpg $ROOT/tmp/test_top.jpg
 

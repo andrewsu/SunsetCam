@@ -18,8 +18,8 @@
 test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  If you get an error related to not being able to claim the USB device, kill processes as described at this link:
 	https://askubuntu.com/questions/993876/gphoto2-could-not-claim-the-usb-device
 
-# graphicsmagick
-`sudo apt-get install graphicsmagick`
+# imgagemagick
+`sudo apt-get install imagemagick`
 
 # ffmpeg
 `sudo apt-get install ffmpeg`
