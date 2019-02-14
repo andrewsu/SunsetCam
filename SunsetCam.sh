@@ -77,8 +77,8 @@ autoexposure=0
 backup=1
 
 lumwindow=3	# calculate drop based on median of most recent $lumwindow images
-lumthresh=0.08  # adjust exposure if % difference in lum from start is > $lumthresh
-lumramp=10      # adjust exposure at most once every $lumramp images
+lumthresh=0.08	# adjust exposure if % difference in lum from start is > $lumthresh
+lumramp=5	# adjust exposure at most once every $lumramp images
 
 # read in command-line options
 while getopts ":i:n:e:d:t:c:a:b:" opt; do
@@ -166,11 +166,11 @@ else
         else
 
             # check if the there have been enough images taken at this exposure
-            if [ $nochangecount > $lumramp ]; then
-                # on every other iteration, calculate % drop in luminance based on median of last 3 images
+            if [ $nochangecount -gt $lumramp ]; then
+                # calculate % drop in luminance based on median of last 3 images
                 lumcurrent=`tail -$lumwindow $luminancefile | awk '{print $2}' | sort -n | head -$((($lumwindow+1)/2)) | tail -1`
-                echo "LUMCURRENT: $lumcurrent"
-                lumdiff=$(($lumstart-$lumcurrent))
+                echo "LUMCURRENT ($nochangecount | $lumramp): $lumcurrent"
+                lumdiff=`echo "($lumcurrent - $lumstart)/$lumstart" | bc -l`
                 echo "LUMDIFF: $lumdiff"
             fi
          
