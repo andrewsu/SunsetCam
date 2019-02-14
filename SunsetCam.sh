@@ -9,8 +9,9 @@
 ###
 
 ### USAGE: ./SunsetCam.sh [-i <interval -- time between shots>] [-n <total number of shots to take>]
-###              [-e <1/0> -- perform empirical exposure test] [-d <1/0> -- perform deflicker]
-###              [-t <1/0> -- upload movie to twitter] [-c <value from table below]
+###              [-e <1/0> -- perform initial empirical exposure test] [-d <1/0> -- perform deflicker in post]
+###              [-t <1/0> -- upload movie to twitter] [-c <exposure compensation value from table below>]
+###              [-a <1/0> -- auto-adjust exposure mode] [-b <1/0> -- copy photos to backup server]
 
 ### possible exposure compensation values below
 # /main/capturesettings/exposurecompensation
@@ -72,9 +73,15 @@ exposure=0
 deflicker=1
 twitter=1
 compensation=15
+autoexposure=0
+backup=1
+
+lumwindow=3	# calculate drop based on median of most recent $lumwindow images
+lumthresh=0.08  # adjust exposure if % difference in lum from start is > $lumthresh
+lumramp=10      # adjust exposure at most once every $lumramp images
 
 # read in command-line options
-while getopts ":i:n:e:d:t:c:" opt; do
+while getopts ":i:n:e:d:t:c:a:b:" opt; do
   case $opt in
     i) interval="$OPTARG"
     ;;
@@ -87,6 +94,10 @@ while getopts ":i:n:e:d:t:c:" opt; do
     t) twitter="$OPTARG"
     ;;
     c) compensation="$OPTARG"
+    ;;
+    a) autoexposure="$OPTARG"
+    ;;
+    b) backup="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
     ;;
@@ -121,17 +132,59 @@ cmd="gphoto2 --set-config imagesize=2 --set-config imagequality=1"
 eval $cmd
 
 # execute image capture
-echo "`date`: Executing photo capture" >> $LOG_FILE
-cmd="gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" -I $interval -F $num --force-overwrite"
 printf "Argument interval is %s\n" "$interval"
 printf "Argument num is %s\n" "$num"
 printf "Argument cmd is %s\n" "$cmd"
-STARTTIME=`date "+%F %T"`
-eval $cmd
-ENDTIME=`date "+%T %Z"`
+if [ $autoexposure = 0 ]; then
+    echo "`date`: Executing photo capture" >> $LOG_FILE
+    cmd="gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" -I $interval -F $num --force-overwrite"
+    STARTTIME=`date "+%F %T"` # average 2 seconds for capture time
+    eval $cmd
+    ENDTIME=`date "+%T %Z"`
+else
+    echo "`date`: Executing photo capture (autoexposure mode)" >> $LOG_FILE
+
+    luminancefile=$ROOT/img/$today/luminance.txt
+    nochangecount=0   # the number of images taken since the exposure was last changed
+    SECONDS=0
+    STARTTIME=`date "+%F %T"`
+    for i in `seq 1 $num`; do
+        echo "Capturing photo $i / $num"
+        cmd="gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" --force-overwrite"
+        eval $cmd
+
+        # calculate and record luminance
+        outputfile=`ls $ROOT/img/$today/*.jpg | tail -1`
+        $ROOT/calculate_luminance.py $outputfile >> $luminancefile
+
+        nochangecount=$(($nochangecount+1))
+
+        if [ $i = 1 ]; then
+            # on the first iteration, set the initial luminance to $lumstart
+            lumstart=`head -1 $luminancefile | awk '{print $2}'`
+            echo "LUMSTART: $lumstart"
+        else
+
+            # check if the there have been enough images taken at this exposure
+            if [ $nochangecount > $lumramp ]; then
+                # on every other iteration, calculate % drop in luminance based on median of last 3 images
+                lumcurrent=`tail -$lumwindow $luminancefile | awk '{print $2}' | sort -n | head -$((($lumwindow+1)/2)) | tail -1`
+                echo "LUMCURRENT: $lumcurrent"
+                lumdiff=$(($lumstart-$lumcurrent))
+                echo "LUMDIFF: $lumdiff"
+            fi
+         
+        fi
+
+        sleep $(($interval*$i-$SECONDS)) 
+    done
+    ENDTIME=`date "+%T %Z"`
+fi
 
 # copy to archive
-scp -r $ROOT/img/$today asu@sulab.scripps.edu:SunsetCamArchive
+if [ $backup = 1 ]; then
+    scp -r $ROOT/img/$today asu@sulab.scripps.edu:SunsetCamArchive
+fi
 
 # deflicker images
 if [ $deflicker = 1 ]; then
