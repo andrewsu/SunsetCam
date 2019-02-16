@@ -20,4 +20,7 @@ def calculate_brightness(image):
 if __name__ == '__main__':
     for file in sys.argv[1:]:
         image = Image.open(file)
-        print("%s\t%s" % (file, calculate_brightness(image)))
+#        print("%s\t%s" % (file, calculate_brightness(image)))
+
+### focus on top half of image
+        print("%s\t%s" % (file, calculate_brightness(image.crop(box=[0,0,image.width,image.height/2]))))
