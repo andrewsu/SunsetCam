@@ -77,7 +77,7 @@ autoexposure=0
 backup=1
 
 lumwindow=3	# calculate drop based on median of most recent $lumwindow images
-lumthresh=0.08	# adjust exposure if % difference in lum from start is > $lumthresh
+lumthresh=0.12	# adjust exposure if % difference in lum from start is > $lumthresh
 lumramp=5	# adjust exposure at most once every $lumramp images
 
 # read in command-line options
@@ -106,11 +106,18 @@ done
 
 # if requested, estimate exposure
 if [ $exposure = 1 ]; then
-    echo "`date`: calibrating exposure" >> $LOG_FILE
     $ROOT/getBestShutter.sh
+    bestShutter=`cat $ROOT/tmp/shutter`
+
+    # set exposure compensation (if any)
+    compensationDiff=$(($compensation-15))
+    shutter=$(($bestShutter+$compensationDiff))
+    cmd="gphoto2 --set-config shutterspeed=$shutter"
+    eval $cmd
+    echo "`date`: calibrated exposure $bestShutter $compensationDiff $shutter" >> $LOG_FILE
 fi
 
-# set exposure compensation
+# set exposure compensation if in some sort of in-camera autoexposure mode
 echo "`date`: Setting exposure comp ($compensation)" >> $LOG_FILE
 cmd="gphoto2 --set-config exposurecompensation=$compensation --set-config exposurecompensation2=0"
 eval $cmd
@@ -136,7 +143,7 @@ printf "Argument interval is %s\n" "$interval"
 printf "Argument num is %s\n" "$num"
 printf "Argument cmd is %s\n" "$cmd"
 if [ $autoexposure = 0 ]; then
-    echo "`date`: Executing photo capture" >> $LOG_FILE
+    echo "`date`: Executing photo capture (normal mode)" >> $LOG_FILE
     cmd="gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" -I $interval -F $num --force-overwrite"
     STARTTIME=`date "+%F %T"` # average 2 seconds for capture time
     eval $cmd
@@ -155,7 +162,7 @@ else
 
         # calculate and record luminance
         outputfile=`ls $ROOT/img/$today/*.jpg | tail -1`
-        $ROOT/calculate_luminance.py $outputfile >> $luminancefile
+        $ROOT/calc_brightness_pil_histogram.py $outputfile >> $luminancefile
 
         nochangecount=$(($nochangecount+1))
 
