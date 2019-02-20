@@ -104,6 +104,19 @@ while getopts ":i:n:e:d:t:c:a:b:" opt; do
   esac
 done
 
+# create output directory (if already exists, then create date.1, date.2, etc.)
+today=`date +"%Y%m%d"`
+if [ -d $ROOT/img/$today ]; then
+    idx=1
+    while [ -d $ROOT/img/$today.$idx ]; do
+        idx=$(($idx+1))
+    done
+    today=$today.$idx
+fi
+mkdir $ROOT/img/$today
+LOG_FILE=$ROOT/img/$today/log
+echo "`date`: created output directory ($ROOT/img/$today)" >> $LOG_FILE
+
 # if requested, estimate exposure
 if [ $exposure = 1 ]; then
     $ROOT/getBestShutter.sh
@@ -121,18 +134,6 @@ fi
 echo "`date`: Setting exposure comp ($compensation)" >> $LOG_FILE
 cmd="gphoto2 --set-config exposurecompensation=$compensation --set-config exposurecompensation2=0"
 eval $cmd
-
-# create output directory (if already exists, then create date.1, date.2, etc.)
-today=`date +"%Y%m%d"`
-if [ -d $ROOT/img/$today ]; then
-    idx=1
-    while [ -d $ROOT/img/$today.$idx ]; do
-        idx=$(($idx+1))
-    done
-    today=$today.$idx
-fi
-echo "`date`: creating output directory ($ROOT/img/$today)" >> $LOG_FILE
-mkdir $ROOT/img/$today
 
 # Set configuration
 cmd="gphoto2 --set-config imagesize=2 --set-config imagequality=1"
