@@ -171,35 +171,35 @@ else
             # on the first iteration, set the initial luminance to $lumstart
             lumstart=`head -1 $luminancefile | awk '{print $2}'`
             echo "LUMSTART: $lumstart"
-        else
-
-            # check if the there have been enough images taken at this exposure
-            if [ $nochangecount -gt $lumramp ]; then
-                # calculate % drop in luminance based on median of last $lumwindow images
-                lumcurrent=`tail -$lumwindow $luminancefile | awk '{print $2}' | sort -n | head -$((($lumwindow+1)/2)) | tail -1`
-                echo "LUMCURRENT ($nochangecount | $lumramp): $lumcurrent"
-                lumdiff=`echo "($lumcurrent - $lumstart)/$lumstart" | bc -l`
-                echo "LUMDIFF: $lumdiff"
-  
-                # check if shutter speed should be adjusted
-                if [ $(echo "$lumdiff > $lumthresh" | bc -l) ]; then
-                    # if exposure has increased
-                    echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
-                    echo "SHUTTER: $shutter -> $(($shutter-1))"
-                    shutter=$(($shutter-1))
-                    nochangecount=0
-                else if [ $(echo "$lumdiff*-1 > $lumthresh" | bc -l) ]; then
-                    # if exposure has decreased
-                    echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
-                    echo "SHUTTER: $shutter -> $(($shutter+1))"
-                    shutter=$(($shutter+1))
-                    nochangecount=0
-                fi
-            fi
-         
+            continue
         fi
 
+        # check if the there have been enough images taken at this exposure
+        if [ $nochangecount -gt $lumramp ]; then
+            # calculate % drop in luminance based on median of last $lumwindow images
+            lumcurrent=`tail -$lumwindow $luminancefile | awk '{print $2}' | sort -n | head -$((($lumwindow+1)/2)) | tail -1`
+            echo "LUMCURRENT ($nochangecount | $lumramp): $lumcurrent"
+            lumdiff=`echo "($lumcurrent - $lumstart)/$lumstart" | bc -l`
+            echo "LUMDIFF: $lumdiff"
+ 
+            # check if shutter speed should be adjusted
+            if [ $(echo "$lumdiff > $lumthresh" | bc -l) ]; then
+                # if exposure has increased
+                echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
+                echo "SHUTTER: $shutter -> $(($shutter-1))"
+                shutter=$(($shutter-1))
+                nochangecount=0
+            else if [ $(echo "$lumdiff*-1 > $lumthresh" | bc -l) ]; then
+                # if exposure has decreased
+                echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
+                echo "SHUTTER: $shutter -> $(($shutter+1))"
+                shutter=$(($shutter+1))
+                nochangecount=0
+            fi
+        fi
+     
         sleep $(($interval*$i-$SECONDS)) 
+
     done
     ENDTIME=`date "+%T %Z"`
 fi
