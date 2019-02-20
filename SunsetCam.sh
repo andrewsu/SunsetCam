@@ -76,9 +76,9 @@ compensation=15
 autoexposure=0
 backup=1
 
-lumwindow=3	# calculate drop based on median of most recent $lumwindow images
+lumwindow=5	# calculate drop based on median of most recent $lumwindow images
 lumthresh=0.12	# adjust exposure if % difference in lum from start is > $lumthresh
-lumramp=5	# adjust exposure at most once every $lumramp images
+lumramp=10	# adjust exposure at most once every $lumramp images
 
 # read in command-line options
 while getopts ":i:n:e:d:t:c:a:b:" opt; do
@@ -145,6 +145,7 @@ printf "Argument cmd is %s\n" "$cmd"
 if [ $autoexposure = 0 ]; then
     echo "`date`: Executing photo capture (normal mode)" >> $LOG_FILE
     cmd="gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" -I $interval -F $num --force-overwrite"
+    echo "CMD: $cmd" >> $LOG_FILE
     STARTTIME=`date "+%F %T"` # average 2 seconds for capture time
     eval $cmd
     ENDTIME=`date "+%T %Z"`
@@ -174,11 +175,26 @@ else
 
             # check if the there have been enough images taken at this exposure
             if [ $nochangecount -gt $lumramp ]; then
-                # calculate % drop in luminance based on median of last 3 images
+                # calculate % drop in luminance based on median of last $lumwindow images
                 lumcurrent=`tail -$lumwindow $luminancefile | awk '{print $2}' | sort -n | head -$((($lumwindow+1)/2)) | tail -1`
                 echo "LUMCURRENT ($nochangecount | $lumramp): $lumcurrent"
                 lumdiff=`echo "($lumcurrent - $lumstart)/$lumstart" | bc -l`
                 echo "LUMDIFF: $lumdiff"
+  
+                # check if shutter speed should be adjusted
+                if [ $(echo "$lumdiff > $lumthresh" | bc -l) ]; then
+                    # if exposure has increased
+                    echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
+                    echo "SHUTTER: $shutter -> $(($shutter-1))"
+                    shutter=$(($shutter-1))
+                    nochangecount=0
+                else if [ $(echo "$lumdiff*-1 > $lumthresh" | bc -l) ]; then
+                    # if exposure has decreased
+                    echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
+                    echo "SHUTTER: $shutter -> $(($shutter+1))"
+                    shutter=$(($shutter+1))
+                    nochangecount=0
+                fi
             fi
          
         fi
