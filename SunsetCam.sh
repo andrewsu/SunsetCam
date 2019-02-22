@@ -78,7 +78,7 @@ backup=1
 
 lumwindow=5	# calculate drop based on median of most recent $lumwindow images
 lumthresh=0.12	# adjust exposure if % difference in lum from start is > $lumthresh
-lumramp=10	# adjust exposure at most once every $lumramp images
+lumramp=20	# adjust exposure at most once every $lumramp images
 
 # read in command-line options
 while getopts ":i:n:e:d:t:c:a:b:" opt; do
@@ -113,9 +113,19 @@ if [ -d $ROOT/img/$today ]; then
     done
     today=$today.$idx
 fi
+echo "`date`: created output directory ($ROOT/img/$today)" >> $LOG_FILE
 mkdir $ROOT/img/$today
 LOG_FILE=$ROOT/img/$today/log
-echo "`date`: created output directory ($ROOT/img/$today)" >> $LOG_FILE
+
+# report run parameters
+echo "Argument interval is $interval" >> $LOG_FILE
+echo "Argument num is $num" >> $LOG_FILE
+echo "Argument exposure is $exposure" >> $LOG_FILE
+echo "Argument deflicker is $deflicker" >> $LOG_FILE
+echo "Argument twitter is $twitter" >> $LOG_FILE
+echo "Argument compensation is $compensation" >> $LOG_FILE
+echo "Argument autoexposure is $autoexposure " >> $LOG_FILE
+echo "Argument backup is $backup" >> $LOG_FILE
 
 # if requested, estimate exposure
 if [ $exposure = 1 ]; then
@@ -128,6 +138,10 @@ if [ $exposure = 1 ]; then
     cmd="gphoto2 --set-config shutterspeed=$shutter"
     eval $cmd
     echo "`date`: calibrated exposure $bestShutter $compensationDiff $shutter" >> $LOG_FILE
+
+### need to figure out how to get shutterspeed when it is not set using $exposure flag
+#else
+#    shutter=`gphoto2 --get-config shutterspeed | `
 fi
 
 # set exposure compensation if in some sort of in-camera autoexposure mode
@@ -140,9 +154,6 @@ cmd="gphoto2 --set-config imagesize=2 --set-config imagequality=1"
 eval $cmd
 
 # execute image capture
-printf "Argument interval is %s\n" "$interval"
-printf "Argument num is %s\n" "$num"
-printf "Argument cmd is %s\n" "$cmd"
 if [ $autoexposure = 0 ]; then
     echo "`date`: Executing photo capture (normal mode)" >> $LOG_FILE
     cmd="gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" -I $interval -F $num --force-overwrite"
@@ -158,7 +169,7 @@ else
     SECONDS=0
     STARTTIME=`date "+%F %T"`
     for i in `seq 1 $num`; do
-        echo "Capturing photo $i / $num"
+        echo "Capturing photo $i / $num" >> $LOG_FILE
         cmd="gphoto2 --capture-image-and-download --filename \"$ROOT/img/$today/%Y%m%d%H%M%S.jpg\" --force-overwrite"
         eval $cmd
 
@@ -171,7 +182,7 @@ else
         if [ $i = 1 ]; then
             # on the first iteration, set the initial luminance to $lumstart
             lumstart=`head -1 $luminancefile | awk '{print $2}'`
-            echo "LUMSTART: $lumstart"
+            echo "LUMSTART: $lumstart" >> $LOG_FILE
             continue
         fi
 
@@ -179,27 +190,33 @@ else
         if [ $nochangecount -gt $lumramp ]; then
             # calculate % drop in luminance based on median of last $lumwindow images
             lumcurrent=`tail -$lumwindow $luminancefile | awk '{print $2}' | sort -n | head -$((($lumwindow+1)/2)) | tail -1`
-            echo "LUMCURRENT ($nochangecount | $lumramp): $lumcurrent"
+            echo "LUMCURRENT ($nochangecount | $lumramp): $lumcurrent" >> $LOG_FILE
             lumdiff=`echo "($lumcurrent - $lumstart)/$lumstart" | bc -l`
-            echo "LUMDIFF: $lumdiff"
+            echo "LUMDIFF: $lumdiff" >> $LOG_FILE
  
             # check if shutter speed should be adjusted
-            if [ $(echo "$lumdiff > $lumthresh" | bc -l) ]; then
+            if (( $(echo "$lumdiff > $lumthresh" | bc -l) )); then
                 # if exposure has increased
-                echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
-                echo "SHUTTER: $shutter -> $(($shutter-1))"
+                echo "THIS IS WHERE I WOULD ADJUST EXPOSURE $lumdiff > $lumthresh" >> $LOG_FILE
+                echo "SHUTTER: $shutter -> $(($shutter-1))" >> $LOG_FILE
                 shutter=$(($shutter-1))
+                gphoto2 --set-config shutterspeed=$shutter
                 nochangecount=0
-            else if [ $(echo "$lumdiff*-1 > $lumthresh" | bc -l) ]; then
+            elif (( $(echo "$lumdiff*-1 > $lumthresh" | bc -l) )); then
                 # if exposure has decreased
-                echo "THIS IS WHERE I WOULD ADJUST EXPOSURE"
-                echo "SHUTTER: $shutter -> $(($shutter+1))"
+                echo "THIS IS WHERE I WOULD ADJUST EXPOSURE $lumdiff * -1 > $lumthresh" >> $LOG_FILE
+                echo "SHUTTER: $shutter -> $(($shutter+1))" >> $LOG_FILE
                 shutter=$(($shutter+1))
+                gphoto2 --set-config shutterspeed=$shutter
                 nochangecount=0
             fi
         fi
      
-        sleep $(($interval*$i-$SECONDS)) 
+        # sleep until next capture
+        sleepduration=$(($interval*$i-$SECONDS))
+        if [ $sleepduration -gt 0 ]; then
+            sleep $sleepduration
+        fi
 
     done
     ENDTIME=`date "+%T %Z"`
@@ -207,7 +224,7 @@ fi
 
 # copy to archive
 if [ $backup = 1 ]; then
-    scp -r $ROOT/img/$today asu@sulab.scripps.edu:SunsetCamArchive
+    scp -r $ROOT/img/$today asu@sulab.scripps.edu:SunsetCamArchive &
 fi
 
 # deflicker images
@@ -233,3 +250,8 @@ if [ $twitter = 1 ]; then
     echo "`date`: uploading to twitter" >> $LOG_FILE
     $ROOT/uploadToTwitter.sh -m "${STARTTIME} - ${ENDTIME}" -f $ROOT/final/$today.mp4
 fi
+
+# clean up
+cd $ROOT/img
+echo "`date`: cleaning up" >> $LOG_FILE
+rm -vr `ls -t | tail -n +50` >> $LOG_FILE
