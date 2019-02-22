@@ -75,13 +75,14 @@ twitter=1
 compensation=15
 autoexposure=0
 backup=1
+message=""
 
 lumwindow=5	# calculate drop based on median of most recent $lumwindow images
 lumthresh=0.12	# adjust exposure if % difference in lum from start is > $lumthresh
 lumramp=20	# adjust exposure at most once every $lumramp images
 
 # read in command-line options
-while getopts ":i:n:e:d:t:c:a:b:" opt; do
+while getopts ":i:n:e:d:t:c:a:b:m:" opt; do
   case $opt in
     i) interval="$OPTARG"
     ;;
@@ -98,6 +99,8 @@ while getopts ":i:n:e:d:t:c:a:b:" opt; do
     a) autoexposure="$OPTARG"
     ;;
     b) backup="$OPTARG"
+    ;;
+    m) message="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
     ;;
@@ -126,6 +129,7 @@ echo "Argument twitter is $twitter" >> $LOG_FILE
 echo "Argument compensation is $compensation" >> $LOG_FILE
 echo "Argument autoexposure is $autoexposure " >> $LOG_FILE
 echo "Argument backup is $backup" >> $LOG_FILE
+echo "Argument message is $message" >> $LOG_FILE
 
 # if requested, estimate exposure
 if [ $exposure = 1 ]; then
@@ -248,7 +252,7 @@ ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" -c:v libx264 -pix_fmt yuv420p 
 # upload movie to twitter
 if [ $twitter = 1 ]; then
     echo "`date`: uploading to twitter" >> $LOG_FILE
-    $ROOT/uploadToTwitter.sh -m "${STARTTIME} - ${ENDTIME}" -f $ROOT/final/$today.mp4
+    $ROOT/uploadToTwitter.sh -m "${STARTTIME} - ${ENDTIME} $message" -f $ROOT/final/$today.mp4
 fi
 
 # clean up
