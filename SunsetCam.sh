@@ -252,7 +252,7 @@ ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" -c:v libx264 -pix_fmt yuv420p 
 # upload movie to twitter
 if [ $twitter = 1 ]; then
     echo "`date`: uploading to twitter" >> $LOG_FILE
-    $ROOT/uploadToTwitter.sh -m "${STARTTIME} - ${ENDTIME} $message" -f $ROOT/final/$today.mp4
+    $ROOT/uploadToTwitter.sh -m "$message (${STARTTIME} - ${ENDTIME})" -f $ROOT/final/$today.mp4
 fi
 
 # clean up

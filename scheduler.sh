@@ -21,14 +21,14 @@ echo "sunset: $sunset" >> $LOG_FILE
 
 ### the above commands should be used to tun this script at a certain time using 'at'
 
-executionTime=`date -d "$sunset -35 min" +"%Y%m%d%H%M"`
+executionTime=`date -d "$sunset -30 min" +"%Y%m%d%H%M"`
 echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 
 
 ### schedule photo capture
 
 #echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
-echo "bash /home/pi/SunsetCam/SunsetCam.sh -n 600 -a 0 -e 1 -d 0 -c 18 -m '#sunset #timelapse' >> $LOG_FILE" | at -t $executionTime
+echo "bash /home/pi/SunsetCam/SunsetCam.sh -n 600 -a 0 -e 1 -d 0 -c 17 -m 'A #sunset #timelapse from @scrippsresearch' >> $LOG_FILE" | at -t $executionTime
 
 
 ### GET SUNRISE TIME
@@ -46,5 +46,5 @@ echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 ### schedule photo capture
 
 #echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
-echo "bash /home/pi/SunsetCam/SunsetCam.sh -a 0 -i 10 -n 240 -c 6 -e 1 -d 0 -m '#timelapse' >> $LOG_FILE" | at -t $executionTime
+echo "bash /home/pi/SunsetCam/SunsetCam.sh -a 0 -i 10 -n 240 -c 6 -e 1 -d 0 -m 'A #timelapse from @scrippsresearch' >> $LOG_FILE" | at -t $executionTime
 
