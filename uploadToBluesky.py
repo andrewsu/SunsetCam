@@ -74,15 +74,21 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
     )
     print(f"uploadVideo HTTP {upload.status_code}: {upload.text}")
     body = upload.json()
-    if "error" in body and "jobStatus" not in body:
+    # Success returns {"jobStatus": {...}}; "already_exists" returns a flat
+    # dict with the existing jobId, which we can pick up via getJobStatus.
+    if body.get("error") == "already_exists" and body.get("jobId"):
+        job_id = body["jobId"]
+        print(f"Video already processed, reusing job_id={job_id}")
+    elif "error" in body and "jobStatus" not in body:
         sys.exit(f"uploadVideo error: {body.get('error')} — {body.get('message')}")
-    job_status = body.get("jobStatus") or {}
-    job_id = job_status.get("jobId")
-    if not job_id:
-        if job_status.get("error"):
-            sys.exit(f"uploadVideo rejected: {job_status['error']}")
-        sys.exit(f"uploadVideo returned no jobId: {body}")
-    print(f"Video upload accepted, job_id={job_id}")
+    else:
+        job_status = body.get("jobStatus") or {}
+        job_id = job_status.get("jobId")
+        if not job_id:
+            if job_status.get("error"):
+                sys.exit(f"uploadVideo rejected: {job_status['error']}")
+            sys.exit(f"uploadVideo returned no jobId: {body}")
+        print(f"Video upload accepted, job_id={job_id}")
 
     deadline = time.monotonic() + POLL_TIMEOUT_SEC
     while True:
