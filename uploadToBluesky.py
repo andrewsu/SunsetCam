@@ -20,6 +20,7 @@ import httpx
 from dotenv import load_dotenv
 from atproto import Client
 from atproto_client import models
+from atproto_client.models.blob_ref import BlobRef
 
 
 VIDEO_SERVICE = "https://video.bsky.app"
@@ -90,21 +91,30 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
             sys.exit(f"uploadVideo returned no jobId: {body}")
         print(f"Video upload accepted, job_id={job_id}")
 
+    # getJobStatus is served by video.bsky.app, not the user's PDS, so we
+    # query it directly. The endpoint accepts unauthenticated GETs.
     deadline = time.monotonic() + POLL_TIMEOUT_SEC
+    started = time.monotonic()
     while True:
-        status = client.app.bsky.video.get_job_status(
-            models.AppBskyVideoGetJobStatus.Params(job_id=job_id)
-        ).job_status
-        if status.state == "JOB_STATE_COMPLETED":
-            if status.blob is None:
+        resp = httpx.get(
+            f"{VIDEO_SERVICE}/xrpc/app.bsky.video.getJobStatus",
+            params={"jobId": job_id},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        status = resp.json().get("jobStatus") or {}
+        state = status.get("state")
+        if state == "JOB_STATE_COMPLETED":
+            blob = status.get("blob")
+            if not blob:
                 sys.exit("Video processing completed but no blob was returned")
-            print(f"Video processing complete after {int(POLL_TIMEOUT_SEC - (deadline - time.monotonic()))}s")
-            return status.blob
-        if status.state == "JOB_STATE_FAILED":
-            sys.exit(f"Video processing failed: {status.error} {status.message}")
+            print(f"Video processing complete after {int(time.monotonic() - started)}s")
+            return BlobRef.model_validate(blob)
+        if state == "JOB_STATE_FAILED":
+            sys.exit(f"Video processing failed: {status.get('error')} {status.get('message')}")
         if time.monotonic() > deadline:
-            sys.exit(f"Video processing did not finish within {POLL_TIMEOUT_SEC}s (last state: {status.state})")
-        print(f"  state={status.state} progress={status.progress}")
+            sys.exit(f"Video processing did not finish within {POLL_TIMEOUT_SEC}s (last state: {state})")
+        print(f"  state={state} progress={status.get('progress')}")
         time.sleep(POLL_INTERVAL_SEC)
 
 
