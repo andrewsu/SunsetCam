@@ -75,17 +75,18 @@ while getopts ":i:n:e:d:t:c:a:b:m:" opt; do
   esac
 done
 
-# create output directory (if already exists, then create date.1, date.2, etc.)
+# create output directory (multiple runs per day get _2, _3, ... suffixes)
 today=`date +"%Y%m%d"`
 if [ -d $ROOT/img/$today ]; then
-    idx=1
-    while [ -d $ROOT/img/$today.$idx ]; do
+    idx=2
+    while [ -d $ROOT/img/${today}_${idx} ]; do
         idx=$(($idx+1))
     done
-    today=$today.$idx
+    today=${today}_${idx}
 fi
 mkdir -p $ROOT/img/$today
 LOG_FILE=$ROOT/img/$today/log
+export LOG_FILE   # so child scripts (getBestShutter.sh, etc.) write to the same per-run log
 echo "`date`: created output directory ($ROOT/img/$today)" >> $LOG_FILE
 
 # report run parameters

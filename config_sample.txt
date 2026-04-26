@@ -1,3 +1,9 @@
-# copy this file to config.txt, adjust values below
+# copy this file to config.txt, then edit the values for your install
 
-ROOT="/home/pi/SunsetGIF/"
+# absolute path to the SunsetCam repo on this host
+ROOT="/home/pi/SunsetCam"
+
+# fallback log file. Only scheduler.sh writes here (it runs at 1 AM, before any
+# per-run directory exists). SunsetCam.sh and the scripts it calls always write
+# to a per-run log at $ROOT/img/<date>[_n]/log instead.
+LOG_FILE="/home/pi/SunsetCam/log"
