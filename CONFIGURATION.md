@@ -1,64 +1,96 @@
-# R and Rscript
-`sudo apt-get install r-base`
-`sudo apt-get install libcurl4-openssl-dev`
-`sudo apt-get install libv8-3.14-dev`
+# Hardware
 
-## suncalc R package
-`install.packages('RCurl')`
-`install.packages('V8')`
-`install.packages('suncalc')`
+- Raspberry Pi 3B running Raspberry Pi OS Bookworm
+- Raspberry Pi Camera Module 3 Wide attached via the CSI ribbon cable
 
-# at
-`sudo apt-get install at`
+# System packages
 
-# gphoto2
-`sudo apt-get install gphoto2 libgphoto2*`
+```
+sudo apt-get update
+sudo apt-get install -y rpicam-apps imagemagick ffmpeg jq at python3-pip python3-venv \
+                        r-base libcurl4-openssl-dev
+```
 
-## note about gphoto2
-test gphoto2 installation by executing 'gphoto2 --capture-image-and-download'.  If you get an error related to not being able to claim the USB device, kill processes as described at this link:
-	https://askubuntu.com/questions/993876/gphoto2-could-not-claim-the-usb-device
+## Verify the camera
 
-# imgagemagick
-`sudo apt-get install imagemagick`
+```
+rpicam-still -n -t 100 -o /tmp/test.jpg
+```
 
-# ffmpeg
-`sudo apt-get install ffmpeg`
+If this writes a JPEG, the camera + driver are working. If not, check `vcgencmd get_camera`
+and the CSI cable seating before going further.
 
-# jq
-`sudo apt-get install jq`
+# R / suncalc (sunrise/sunset times)
 
-# twurl
-`sudo gem install twurl`
+```
+sudo R -e "install.packages(c('RCurl','V8','suncalc'), repos='https://cloud.r-project.org')"
+```
 
-# install and configure ntp so time is automatically set on boot
+# Python dependencies (Bluesky posting + brightness analysis)
+
+The brightness script (`calc_brightness_pil_histogram.py`) needs `Pillow`. The Bluesky
+uploader needs `atproto` and `python-dotenv`.
+
+```
+sudo apt-get install -y python3-pil
+pip install --break-system-packages atproto python-dotenv
+```
+
+(or use a virtualenv and adjust the shebang/path in `uploadToBluesky.py` accordingly)
+
+# NTP — make sure the Pi has the right time on boot
+
+```
 sudo apt install ntp
 sudo systemctl enable ntp
 sudo timedatectl set-ntp 1
+```
 
-# clone repo
-`git clone https://github.com/andrewsu/SunsetCam.git`
-
-# set up cron job
-using `crontab -e` create a job *like this* to run every morning at 1AM
-`0 1 * * * cd /home/pi/SunsetCam && ./scheduler.sh`
-
-# force time to update on boot
-
-add these lines to /etc/rc.local
+If you want to force a sync at boot, add to `/etc/rc.local`:
 ```
 /etc/init.d/ntp stop
 /usr/sbin/ntpd -q -g
 /etc/init.d/ntp start
 ```
 
-# authorize the twitter account
+# Clone the repo
+
 ```
-CONFIG_FILE="config.txt" 
-if [ ! -f $CONFIG_FILE ]; then
-     echo "Configuration file not found! Exiting..."
-     exit 1
-fi 
-source $CONFIG_FILE
-twurl authorize --consumer-key $TWITTER_API_KEY --consumer-secret $TWITTER_API_SECRET_KEY
+git clone https://github.com/andrewsu/SunsetCam.git
+cd SunsetCam
+cp config_sample.txt config.txt   # edit ROOT and LOG_FILE
+cp .env.sample .env               # add your Bluesky credentials
 ```
-follow instructions shown at prompt (go to twitter URL, authenticate, enter PIN)
+
+# Bluesky credentials
+
+1. Sign in at https://bsky.app and go to Settings → App Passwords
+2. Create a new app password (looks like `xxxx-xxxx-xxxx-xxxx`)
+3. Put your handle and the app password in `.env`:
+   ```
+   BLUESKY_HANDLE=yourhandle.bsky.social
+   BLUESKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+   ```
+
+Test the uploader with a small mp4:
+```
+./uploadToBluesky.sh -m "test post" -f /path/to/some.mp4
+```
+
+# Deflicker (optional, recommended)
+
+The capture script invokes `timelapse-deflicker.pl` from
+https://github.com/cyberang3l/timelapse-deflicker — drop the script in the repo root and
+make it executable, or pass `-d 0` to skip.
+
+# Cron — run the scheduler each morning
+
+```
+crontab -e
+```
+Add:
+```
+0 1 * * * cd /home/pi/SunsetCam && ./scheduler.sh
+```
+The scheduler computes today's sunrise and sunset times and queues `SunsetCam.sh` runs
+via `at`.

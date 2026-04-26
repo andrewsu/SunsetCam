@@ -4,4 +4,6 @@ tmp/
 log
 *.swp
 config.txt
+.env
+__pycache__/
 timelapse-deflicker.pl
