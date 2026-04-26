@@ -27,6 +27,21 @@ POLL_INTERVAL_SEC = 5
 POLL_TIMEOUT_SEC = 30 * 60
 
 
+def resolve_pds_host(did: str) -> str:
+    """Resolve the user's PDS hostname from their DID document."""
+    if did.startswith("did:plc:"):
+        doc = httpx.get(f"https://plc.directory/{did}", timeout=30).json()
+    elif did.startswith("did:web:"):
+        host = did[len("did:web:"):].replace(":", "/")
+        doc = httpx.get(f"https://{host}/.well-known/did.json", timeout=30).json()
+    else:
+        sys.exit(f"Unsupported DID method: {did}")
+    for svc in doc.get("service", []):
+        if svc.get("type") == "AtprotoPersonalDataServer":
+            return urlparse(svc["serviceEndpoint"]).hostname
+    sys.exit(f"No PDS service entry in DID document for {did}")
+
+
 def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "models.BlobRef":
     """Upload to Bluesky's video service and poll until processing completes.
 
@@ -34,11 +49,14 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
     transcoding and produces "Video not found" on the rendered post. This
     follows the documented flow: getServiceAuth -> uploadVideo -> getJobStatus.
     """
-    pds_host = urlparse(client._base_url).hostname
+    pds_host = resolve_pds_host(client.me.did)
+    aud = f"did:web:{pds_host}"
+    print(f"PDS host: {pds_host}")
+    print(f"Service auth aud: {aud}")
 
     auth = client.com.atproto.server.get_service_auth(
         models.ComAtprotoServerGetServiceAuth.Params(
-            aud=f"did:web:{pds_host}",
+            aud=aud,
             lxm="com.atproto.repo.uploadBlob",
             exp=int(time.time()) + 30 * 60,
         )
@@ -54,8 +72,16 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
         content=video_bytes,
         timeout=300,
     )
-    upload.raise_for_status()
-    job_id = upload.json()["jobStatus"]["jobId"]
+    print(f"uploadVideo HTTP {upload.status_code}: {upload.text}")
+    body = upload.json()
+    if "error" in body and "jobStatus" not in body:
+        sys.exit(f"uploadVideo error: {body.get('error')} — {body.get('message')}")
+    job_status = body.get("jobStatus") or {}
+    job_id = job_status.get("jobId")
+    if not job_id:
+        if job_status.get("error"):
+            sys.exit(f"uploadVideo rejected: {job_status['error']}")
+        sys.exit(f"uploadVideo returned no jobId: {body}")
     print(f"Video upload accepted, job_id={job_id}")
 
     deadline = time.monotonic() + POLL_TIMEOUT_SEC
