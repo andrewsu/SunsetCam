@@ -84,7 +84,7 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
         sys.exit(f"uploadVideo error: {body.get('error')} — {body.get('message')}")
     else:
         job_status = body.get("jobStatus") or {}
-        job_id = job_status.get("jobId")
+        job_id = job_status.get("jobId") or body.get("jobId")
         if not job_id:
             if job_status.get("error"):
                 sys.exit(f"uploadVideo rejected: {job_status['error']}")

@@ -199,4 +199,5 @@ fi
 # clean up
 cd $ROOT/img
 echo "`date`: cleaning up" >> $LOG_FILE
-rm -vr `ls -t | tail -n +50` >> $LOG_FILE
+old_dirs=$(ls -t | tail -n +50)
+[ -n "$old_dirs" ] && rm -vr $old_dirs >> $LOG_FILE
