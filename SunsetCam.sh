@@ -13,7 +13,8 @@
 ### USAGE: ./SunsetCam.sh [-i <interval -- time between shots>] [-n <total number of shots to take>]
 ###              [-e <1/0> -- perform initial empirical exposure test] [-d <1/0> -- perform deflicker in post]
 ###              [-t <1/0> -- post movie to Bluesky] [-c <exposure compensation index, 0..30, 15=0EV>]
-###              [-a <1/0> -- auto-adjust exposure mode] [-b <1/0> -- copy photos to backup server]
+###              [-a <1/0> -- ramp shutter from calibrated start up to ramp_max_shutter over the run]
+###              [-b <1/0> -- copy photos to backup server]
 
 ### Exposure compensation index mapping (kept identical to original gphoto2 semantics)
 ###   each step  = 1/3 EV
@@ -41,9 +42,7 @@ autoexposure=0
 backup=1
 message=""
 
-lumwindow=5	# calculate drop based on median of most recent $lumwindow images
-lumthresh=0.12	# adjust exposure if % difference in lum from start is > $lumthresh
-lumramp=20	# adjust exposure at most once every $lumramp images
+ramp_max_shutter=500000   # 0.5s ceiling: shutter ramps from calibrated start to here over the full run (-a mode)
 
 # Default shutter (in microseconds) used when -e 0 (no calibration). 1/100s is a reasonable
 # starting point for golden hour; the autoexposure loop will adjust from here.
@@ -115,48 +114,27 @@ compDiff=$(($compensation - 15))
 shutter=$(python3 -c "print(int($bestShutter * 2**($compDiff/3)))")
 echo "`date`: shutter after compensation (${compDiff}/3 stops) = ${shutter}us" >> $LOG_FILE
 
-# capture loop (used for both manual and autoexposure modes)
+# capture loop
 echo "`date`: Executing photo capture (autoexposure=$autoexposure)" >> $LOG_FILE
-luminancefile=$ROOT/img/$today/luminance.txt
-nochangecount=0
+if [ $autoexposure = 1 ]; then
+    echo "`date`: exposure ramp: ${shutter}us -> ${ramp_max_shutter}us over $num frames" >> $LOG_FILE
+fi
+start_shutter=$shutter
 SECONDS=0
 STARTTIME=`date "+%F %T"`
 
 for i in `seq 1 $num`; do
+    if [ $autoexposure = 1 ]; then
+        shutter=$(python3 -c "
+s0=$start_shutter; smax=$ramp_max_shutter; i=$i; n=$num
+ratio = max(smax / s0, 1.0)
+print(int(s0 * ratio ** ((i - 1) / max(n - 1, 1))))
+")
+    fi
+
     filename="$ROOT/img/$today/`date +%Y%m%d%H%M%S`.jpg"
     echo "Capturing photo $i / $num at shutter=${shutter}us -> $filename" >> $LOG_FILE
     rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight -o "$filename" >> $LOG_FILE 2>&1
-
-    if [ $autoexposure = 1 ]; then
-        # calculate and record luminance
-        $ROOT/calc_brightness_pil_histogram.py "$filename" >> $luminancefile
-        nochangecount=$(($nochangecount + 1))
-
-        if [ $i = 1 ]; then
-            lumstart=`head -1 $luminancefile | awk '{print $2}'`
-            echo "LUMSTART: $lumstart" >> $LOG_FILE
-        elif [ $nochangecount -gt $lumramp ]; then
-            # median of last $lumwindow luminance values
-            lumcurrent=`tail -$lumwindow $luminancefile | awk '{print $2}' | sort -n | head -$((($lumwindow+1)/2)) | tail -1`
-            echo "LUMCURRENT ($nochangecount | $lumramp): $lumcurrent" >> $LOG_FILE
-            lumdiff=`echo "($lumcurrent - $lumstart)/$lumstart" | bc -l`
-            echo "LUMDIFF: $lumdiff" >> $LOG_FILE
-
-            if (( $(echo "$lumdiff > $lumthresh" | bc -l) )); then
-                # image got brighter than start -> shorten exposure by 1/3 stop
-                newshutter=$(python3 -c "print(int($shutter / (2**(1/3))))")
-                echo "SHUTTER: $shutter -> $newshutter (shorten, 1/3 stop)" >> $LOG_FILE
-                shutter=$newshutter
-                nochangecount=0
-            elif (( $(echo "$lumdiff*-1 > $lumthresh" | bc -l) )); then
-                # image got dimmer than start -> lengthen exposure by 1/3 stop
-                newshutter=$(python3 -c "print(int($shutter * (2**(1/3))))")
-                echo "SHUTTER: $shutter -> $newshutter (lengthen, 1/3 stop)" >> $LOG_FILE
-                shutter=$newshutter
-                nochangecount=0
-            fi
-        fi
-    fi
 
     # sleep until next capture
     sleepduration=$(($interval*$i - $SECONDS))
