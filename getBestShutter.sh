@@ -36,7 +36,7 @@ shutter=4000000   # 4 seconds (very dim twilight)
 min_shutter=250   # 1/4000 s (bright daylight)
 
 while [ $shutter -ge $min_shutter ]; do
-    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight -o $ROOT/tmp/test.jpg >> $LOG_FILE 2>&1
+    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o $ROOT/tmp/test.jpg >> $LOG_FILE 2>&1
 
     # use imagemagick to get number of unique colors -- see https://imagemagick.org/script/escape.php
     numColors=`identify -format %k $ROOT/tmp/test.jpg`

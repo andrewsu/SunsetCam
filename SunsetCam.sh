@@ -134,7 +134,7 @@ print(int(s0 * ratio ** ((i - 1) / max(n - 1, 1))))
 
     filename="$ROOT/img/$today/`date +%Y%m%d%H%M%S`.jpg"
     echo "Capturing photo $i / $num at shutter=${shutter}us -> $filename" >> $LOG_FILE
-    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight -o "$filename" >> $LOG_FILE 2>&1
+    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o "$filename" >> $LOG_FILE 2>&1
 
     # sleep until next capture
     sleepduration=$(($interval*$i - $SECONDS))
