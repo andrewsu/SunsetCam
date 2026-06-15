@@ -58,7 +58,7 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
     auth = client.com.atproto.server.get_service_auth(
         models.ComAtprotoServerGetServiceAuth.Params(
             aud=aud,
-            lxm="com.atproto.repo.uploadBlob",
+            lxm="app.bsky.video.uploadVideo",
             exp=int(time.time()) + 30 * 60,
         )
     )
@@ -74,6 +74,7 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
         timeout=300,
     )
     print(f"uploadVideo HTTP {upload.status_code}: {upload.text}")
+    upload.raise_for_status()
     body = upload.json()
     # Success returns {"jobStatus": {...}}; "already_exists" returns a flat
     # dict with the existing jobId, which we can pick up via getJobStatus.

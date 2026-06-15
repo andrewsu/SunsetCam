@@ -15,12 +15,12 @@
 
 ### READ CONFIGURATION FILE
 PARENT_LOG_FILE=$LOG_FILE   # if invoked from SunsetCam.sh, inherit its per-run log
-CONFIG_FILE="config.txt"
-if [ ! -f $CONFIG_FILE ]; then
+CONFIG_FILE="$(dirname "$0")/config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then
      echo "Configuration file not found! Exiting..."
      exit 1
 fi
-source $CONFIG_FILE
+source "$CONFIG_FILE"
 [ -n "$PARENT_LOG_FILE" ] && LOG_FILE=$PARENT_LOG_FILE
 
 mkdir -p $ROOT/tmp

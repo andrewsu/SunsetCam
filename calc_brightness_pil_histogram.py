@@ -23,4 +23,4 @@ if __name__ == '__main__':
 #        print("%s\t%s" % (file, calculate_brightness(image)))
 
 ### focus on top half of image
-        print("%s\t%s" % (file, calculate_brightness(image.crop(box=[0,0,image.width,image.height/2]))))
+        print("%s\t%s" % (file, calculate_brightness(image.crop(box=[0,0,image.width,image.height//2]))))

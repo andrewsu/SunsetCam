@@ -1,17 +1,17 @@
 #!/bin/bash
 
 ### READ CONFIGURATION FILE
-CONFIG_FILE="config.txt"  
-if [ ! -f $CONFIG_FILE ]; then
+CONFIG_FILE="$(dirname "$0")/config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then
      echo "Configuration file not found! Exiting..."
-     exit 1 
-fi  
-source $CONFIG_FILE
+     exit 1
+fi
+source "$CONFIG_FILE"
 
 ### GET SUNSET TIME
 
 # Option #1: use R
-sunset=`Rscript $ROOT/getSunsetTime.r`
+sunset=`Rscript $ROOT/getSunTime.r sunset`
 echo "sunset: $sunset" >> $LOG_FILE
 
 # Option #2: use web services
@@ -28,13 +28,13 @@ echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 ### schedule photo capture
 
 #echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
-echo "bash /home/pi/SunsetCam/SunsetCam.sh -n 600 -a 0 -e 1 -d 0 -c 17 -m 'A #sunset #timelapse from Scripps Research' >> $LOG_FILE" | at -t $executionTime
+echo "bash $ROOT/SunsetCam.sh -n 600 -a 1 -e 1 -d 0 -c 17 -m 'A #sunset #timelapse from Scripps Research' >> $LOG_FILE" | at -t $executionTime
 
 
 ### GET SUNRISE TIME
 
 # Option #1: use R
-sunrise=`Rscript $ROOT/getSunriseTime.r`
+sunrise=`Rscript $ROOT/getSunTime.r sunrise`
 echo "sunrise: $sunrise" >> $LOG_FILE
 
 ### the above commands should be used to tun this script at a certain time using 'at'
@@ -46,5 +46,5 @@ echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
 ### schedule photo capture
 
 #echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
-echo "bash /home/pi/SunsetCam/SunsetCam.sh -a 0 -i 10 -n 240 -c 6 -e 1 -d 0 -m 'A #timelapse from Scripps Research' >> $LOG_FILE" | at -t $executionTime
+echo "bash $ROOT/SunsetCam.sh -a 1 -i 10 -n 240 -c 6 -e 1 -d 0 -m 'A #sunrise timelapse from Scripps Research' >> $LOG_FILE" | at -t $executionTime
 

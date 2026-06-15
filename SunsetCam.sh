@@ -24,12 +24,12 @@
 ### Internally: shutter_us = bestShutter_us * 2^((compensation - 15) / 3)
 
 ### READ CONFIGURATION FILE
-CONFIG_FILE="config.txt"
-if [ ! -f $CONFIG_FILE ]; then
+CONFIG_FILE="$(dirname "$0")/config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then
      echo "Configuration file not found! Exiting..."
      exit 1
 fi
-source $CONFIG_FILE
+source "$CONFIG_FILE"
 
 # Initialize parameters
 num=480
@@ -101,8 +101,12 @@ echo "Argument message is $message" >> $LOG_FILE
 
 # determine baseline shutter (microseconds)
 if [ $exposure = 1 ]; then
-    $ROOT/getBestShutter.sh
+    $ROOT/getBestShutter.sh || { echo "`date`: getBestShutter.sh failed" >> $LOG_FILE; exit 1; }
     bestShutter=`cat $ROOT/tmp/shutter`
+    if [ -z "$bestShutter" ]; then
+        echo "`date`: shutter file empty, using default" >> $LOG_FILE
+        bestShutter=$DEFAULT_SHUTTER_US
+    fi
     echo "`date`: calibrated baseline shutter ${bestShutter}us" >> $LOG_FILE
 else
     bestShutter=$DEFAULT_SHUTTER_US
@@ -116,10 +120,15 @@ echo "`date`: shutter after compensation (${compDiff}/3 stops) = ${shutter}us" >
 
 # capture loop
 echo "`date`: Executing photo capture (autoexposure=$autoexposure)" >> $LOG_FILE
-if [ $autoexposure = 1 ]; then
-    echo "`date`: exposure ramp: ${shutter}us -> ${ramp_max_shutter}us over $num frames" >> $LOG_FILE
-fi
 start_shutter=$shutter
+if [ $autoexposure = 1 ]; then
+    if [ $start_shutter -ge $ramp_max_shutter ]; then
+        echo "`date`: WARNING: start_shutter (${start_shutter}us) >= ramp_max_shutter (${ramp_max_shutter}us), ramp disabled" >> $LOG_FILE
+        autoexposure=0
+    else
+        echo "`date`: exposure ramp: ${start_shutter}us -> ${ramp_max_shutter}us over $num frames" >> $LOG_FILE
+    fi
+fi
 SECONDS=0
 STARTTIME=`date "+%F %T"`
 
@@ -166,7 +175,7 @@ fi
 # create mp4 using ffmpeg
 mkdir -p $ROOT/final
 echo "`date`: Creating mp4 ($ROOT/final/$today.mp4)" >> $LOG_FILE
-ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease" $ROOT/final/$today.mp4
+ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease" $ROOT/final/$today.mp4 || { echo "`date`: ffmpeg failed" >> $LOG_FILE; exit 1; }
 
 # upload movie to Bluesky
 if [ $post = 1 ]; then
@@ -175,7 +184,7 @@ if [ $post = 1 ]; then
 fi
 
 # clean up
-cd $ROOT/img
+cd "$ROOT/img" || { echo "`date`: cd $ROOT/img failed, skipping cleanup" >> $LOG_FILE; exit 0; }
 echo "`date`: cleaning up" >> $LOG_FILE
 old_dirs=$(ls -t | tail -n +50)
 [ -n "$old_dirs" ] && rm -vr $old_dirs >> $LOG_FILE

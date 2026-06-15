@@ -13,12 +13,12 @@
 ### USAGE: ./uploadToBluesky.sh -m "<post text>" -f <file to upload>
 
 ### READ CONFIGURATION FILE
-CONFIG_FILE="config.txt"
-if [ ! -f $CONFIG_FILE ]; then
+CONFIG_FILE="$(dirname "$0")/config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then
      echo "Configuration file not found! Exiting..."
      exit 1
 fi
-source $CONFIG_FILE
+source "$CONFIG_FILE"
 
 # Initialize parameters
 message=""
