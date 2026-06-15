@@ -22,13 +22,29 @@ Bluesky.
 - `uploadToBluesky.sh` / `uploadToBluesky.py` — post the finished mp4 to Bluesky using
   the `atproto` SDK; credentials read from `.env`.
 
+## Dependencies
+
+| Dependency | Type | Used by |
+| --- | --- | --- |
+| `rpicam-apps` | system | `rpicam-still` for frame capture |
+| `imagemagick` | system | `identify` for unique-color counting in `getBestShutter.sh` |
+| `ffmpeg` | system | mp4 assembly |
+| `at` / `atd` | system | `scheduler.sh` queues timed jobs |
+| `python3` | system | per-frame shutter ramp calculation; Bluesky upload |
+| `r-base` | system | `Rscript` for sunrise/sunset time computation |
+| `atproto` | Python | Bluesky SDK |
+| `httpx` | Python | HTTP calls to the Bluesky video service |
+| `python-dotenv` | Python | reads Bluesky credentials from `.env` |
+| `suncalc` | R | astronomical sunrise/sunset times |
+| `timelapse-deflicker.pl` | optional | inter-frame deflickering (see step 6 below) |
+
 ## Setup (Raspberry Pi OS Bookworm, Pi 3B + Camera Module 3 Wide)
 
 1. **Install system packages**
    ```
    sudo apt-get update
-   sudo apt-get install -y rpicam-apps imagemagick ffmpeg jq at \
-                           python3-pip python3-pil r-base
+   sudo apt-get install -y rpicam-apps imagemagick ffmpeg at \
+                           python3-pip r-base
    ```
 
 2. **Verify the camera works**
@@ -38,8 +54,8 @@ Bluesky.
 
 3. **Install R packages and Python libraries**
    ```
-   sudo R -e "install.packages(c('RCurl','V8','suncalc'), repos='https://cloud.r-project.org')"
-   pip install --break-system-packages atproto python-dotenv
+   sudo R -e "install.packages('suncalc', repos='https://cloud.r-project.org')"
+   pip install --break-system-packages atproto httpx python-dotenv
    ```
 
 4. **Clone and configure**
@@ -74,7 +90,7 @@ Bluesky.
    ```
    Add:
    ```
-   0 1 * * * cd /home/pi/SunsetCam && ./scheduler.sh
+   0 1 * * * /home/asu/SunsetCam/scheduler.sh
    ```
 
 ## Manual run
@@ -92,7 +108,7 @@ Flags (preserved from the original gphoto2 era for backward compatibility):
 | `-d` | run timelapse-deflicker after capture |
 | `-t` | post finished mp4 (now to Bluesky, formerly Twitter) |
 | `-c` | exposure compensation index 0..30 (1/3 EV per step, 15 = 0 EV) |
-| `-a` | continuously adjust shutter based on luminance feedback |
+| `-a` | ramp shutter exponentially from calibrated start to 0.5 s over the run |
 | `-b` | scp the frames to the archive host |
 | `-m` | post text |
 
