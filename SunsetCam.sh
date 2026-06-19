@@ -14,6 +14,7 @@
 ###              [-e <1/0> -- perform initial empirical exposure test] [-d <1/0> -- perform deflicker in post]
 ###              [-t <1/0> -- post movie to Bluesky] [-c <exposure compensation index, 0..30, 15=0EV>]
 ###              [-a <1/0> -- ramp shutter from calibrated start up to ramp_max_shutter over the run]
+###              [-r <ramp_max_shutter_us> -- ceiling for the exposure ramp in microseconds (default 500000)]
 ###              [-b <1/0> -- copy photos to backup server]
 
 ### Exposure compensation index mapping (kept identical to original gphoto2 semantics)
@@ -49,7 +50,7 @@ ramp_max_shutter=500000   # 0.5s ceiling: shutter ramps from calibrated start to
 DEFAULT_SHUTTER_US=10000
 
 # read in command-line options
-while getopts ":i:n:e:d:t:c:a:b:m:" opt; do
+while getopts ":i:n:e:d:t:c:a:r:b:m:" opt; do
   case $opt in
     i) interval="$OPTARG"
     ;;
@@ -64,6 +65,8 @@ while getopts ":i:n:e:d:t:c:a:b:m:" opt; do
     c) compensation="$OPTARG"
     ;;
     a) autoexposure="$OPTARG"
+    ;;
+    r) ramp_max_shutter="$OPTARG"
     ;;
     b) backup="$OPTARG"
     ;;
@@ -86,6 +89,8 @@ fi
 mkdir -p $ROOT/img/$today
 LOG_FILE=$ROOT/img/$today/log
 export LOG_FILE   # so child scripts (getBestShutter.sh, etc.) write to the same per-run log
+CAMERA_PID=""
+trap '[ -n "$CAMERA_PID" ] && kill "$CAMERA_PID" 2>/dev/null; exit 1' INT TERM HUP
 echo "`date`: created output directory ($ROOT/img/$today)" >> $LOG_FILE
 
 # report run parameters
@@ -143,7 +148,10 @@ print(int(s0 * ratio ** ((i - 1) / max(n - 1, 1))))
 
     filename="$ROOT/img/$today/`date +%Y%m%d%H%M%S`.jpg"
     echo "Capturing photo $i / $num at shutter=${shutter}us -> $filename" >> $LOG_FILE
-    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o "$filename" >> $LOG_FILE 2>&1
+    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o "$filename" >> $LOG_FILE 2>&1 &
+    CAMERA_PID=$!
+    wait $CAMERA_PID
+    CAMERA_PID=""
 
     # sleep until next capture
     sleepduration=$(($interval*$i - $SECONDS))

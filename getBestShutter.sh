@@ -27,6 +27,9 @@ mkdir -p $ROOT/tmp
 
 echo "running getBestShutter.sh" >> $LOG_FILE
 
+CAMERA_PID=""
+trap '[ -n "$CAMERA_PID" ] && kill "$CAMERA_PID" 2>/dev/null; exit 1' INT TERM HUP
+
 lastNumColors=0
 lastShutter=10000
 
@@ -36,10 +39,14 @@ shutter=4000000   # 4 seconds (very dim twilight)
 min_shutter=250   # 1/4000 s (bright daylight)
 
 while [ $shutter -ge $min_shutter ]; do
-    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o $ROOT/tmp/test.jpg >> $LOG_FILE 2>&1
+    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o $ROOT/tmp/test.jpg >> $LOG_FILE 2>&1 &
+    CAMERA_PID=$!
+    wait $CAMERA_PID
+    CAMERA_PID=""
 
     # use imagemagick to get number of unique colors -- see https://imagemagick.org/script/escape.php
-    numColors=`identify -format %k $ROOT/tmp/test.jpg`
+    numColors=$(identify -format %k "$ROOT/tmp/test.jpg" 2>/dev/null)
+    numColors=${numColors:-0}
     echo "Shutter ${shutter}us has $numColors unique colors" >> $LOG_FILE
     rm -f $ROOT/tmp/test.jpg
 
@@ -52,5 +59,9 @@ while [ $shutter -ge $min_shutter ]; do
     shutter=$(($shutter * 100 / 158))
 done
 
+if [ "$lastNumColors" -eq 0 ]; then
+    echo "$(date): getBestShutter.sh: all captures failed (camera locked?), aborting" >> $LOG_FILE
+    exit 1
+fi
 echo "best shutter: ${lastShutter}us ($lastNumColors unique colors)" >> $LOG_FILE
 echo $lastShutter > $ROOT/tmp/shutter
