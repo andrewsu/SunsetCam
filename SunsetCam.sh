@@ -49,6 +49,12 @@ ramp_max_shutter=500000   # 0.5s ceiling: shutter ramps from calibrated start to
 # starting point for golden hour; the autoexposure loop will adjust from here.
 DEFAULT_SHUTTER_US=10000
 
+# Camera settle time (milliseconds) before each capture (rpicam-still -t). The voice-coil
+# focus lens needs time to physically move to and settle at the manual lens position; the
+# old value of 100ms was too short and produced soft frames. 1000ms is a safe margin and
+# stays well under the capture interval.
+SETTLE_MS=1000
+
 # read in command-line options
 while getopts ":i:n:e:d:t:c:a:r:b:m:" opt; do
   case $opt in
@@ -148,7 +154,7 @@ print(int(s0 * ratio ** ((i - 1) / max(n - 1, 1))))
 
     filename="$ROOT/img/$today/`date +%Y%m%d%H%M%S`.jpg"
     echo "Capturing photo $i / $num at shutter=${shutter}us -> $filename" >> $LOG_FILE
-    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o "$filename" >> $LOG_FILE 2>&1 &
+    rpicam-still -n -t $SETTLE_MS --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o "$filename" >> $LOG_FILE 2>&1 &
     CAMERA_PID=$!
     wait $CAMERA_PID
     CAMERA_PID=""
