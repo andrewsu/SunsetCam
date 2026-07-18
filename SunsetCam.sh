@@ -55,6 +55,20 @@ DEFAULT_SHUTTER_US=10000
 # stays well under the capture interval.
 SETTLE_MS=1000
 
+# JPEG quality (rpicam-still -q, default 93). Capture near-lossless frames so we don't stack
+# JPEG artifacts before the h264 encode.
+JPEG_QUALITY=100
+
+# Fixed white balance as explicit red,blue gains (rpicam-still --awbgains), which disables the
+# AWB algorithm entirely. Measured from --awb daylight on this camera (~6159K). Locking the
+# gains keeps colour consistent frame-to-frame AND preserves the warm sunset tones that auto
+# WB would otherwise neutralise.
+AWB_GAINS="2.34,1.67"
+
+# Denoise mode (rpicam-still --denoise). cdn_hq = high-quality colour denoise, which helps the
+# noisy low-light frames at the dusk end of the run. Applied to all frames for simplicity.
+DENOISE=cdn_hq
+
 # read in command-line options
 while getopts ":i:n:e:d:t:c:a:r:b:m:" opt; do
   case $opt in
@@ -154,7 +168,7 @@ print(int(s0 * ratio ** ((i - 1) / max(n - 1, 1))))
 
     filename="$ROOT/img/$today/`date +%Y%m%d%H%M%S`.jpg"
     echo "Capturing photo $i / $num at shutter=${shutter}us -> $filename" >> $LOG_FILE
-    rpicam-still -n -t $SETTLE_MS --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o "$filename" >> $LOG_FILE 2>&1 &
+    rpicam-still -n -t $SETTLE_MS --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awbgains $AWB_GAINS --denoise $DENOISE --autofocus-mode manual --lens-position 0 -q $JPEG_QUALITY -o "$filename" >> $LOG_FILE 2>&1 &
     CAMERA_PID=$!
     wait $CAMERA_PID
     CAMERA_PID=""
@@ -189,7 +203,10 @@ fi
 # create mp4 using ffmpeg
 mkdir -p $ROOT/final
 echo "`date`: Creating mp4 ($ROOT/final/$today.mp4)" >> $LOG_FILE
-ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" -c:v libx264 -pix_fmt yuv420p -vf "scale=w=1280:h=720:force_original_aspect_ratio=decrease" $ROOT/final/$today.mp4 || { echo "`date`: ffmpeg failed" >> $LOG_FILE; exit 1; }
+# Encode at native 1920x1080 (no downscale) with a lower CRF for higher quality. Kept 8-bit
+# yuv420p for broad player/Bluesky compatibility (10-bit would reduce sky banding but risks
+# playback/transcode issues on the posted video).
+ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" -c:v libx264 -crf 18 -pix_fmt yuv420p $ROOT/final/$today.mp4 || { echo "`date`: ffmpeg failed" >> $LOG_FILE; exit 1; }
 
 # upload movie to Bluesky
 if [ $post = 1 ]; then
