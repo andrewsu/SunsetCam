@@ -16,6 +16,7 @@
 ###              [-a <1/0> -- ramp shutter from calibrated start up to ramp_max_shutter over the run]
 ###              [-r <ramp_max_shutter_us> -- ceiling for the exposure ramp in microseconds (default 500000)]
 ###              [-b <1/0> -- copy photos to backup server]
+###              [-l <degrees> -- rotate frames to level the horizon in the final video; + = clockwise]
 
 ### Exposure compensation index mapping (kept identical to original gphoto2 semantics)
 ###   each step  = 1/3 EV
@@ -42,6 +43,7 @@ compensation=15
 autoexposure=0
 backup=1
 message=""
+level=0
 
 ramp_max_shutter=500000   # 0.5s ceiling: shutter ramps from calibrated start to here over the full run (-a mode)
 
@@ -70,7 +72,7 @@ AWB_GAINS="2.34,1.67"
 DENOISE=cdn_hq
 
 # read in command-line options
-while getopts ":i:n:e:d:t:c:a:r:b:m:" opt; do
+while getopts ":i:n:e:d:t:c:a:r:b:m:l:" opt; do
   case $opt in
     i) interval="$OPTARG"
     ;;
@@ -91,6 +93,8 @@ while getopts ":i:n:e:d:t:c:a:r:b:m:" opt; do
     b) backup="$OPTARG"
     ;;
     m) message="$OPTARG"
+    ;;
+    l) level="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
     ;;
@@ -203,10 +207,22 @@ fi
 # create mp4 using ffmpeg
 mkdir -p $ROOT/final
 echo "`date`: Creating mp4 ($ROOT/final/$today.mp4)" >> $LOG_FILE
+
+# Optional horizon-leveling rotation (-l <degrees>, + = clockwise). Rotate about the centre,
+# then zoom just enough to crop back to a full-frame 1920x1080 with no black corners. The
+# zoom factor cos(a)+(16/9)sin(a) is the exact fill amount for a 16:9 frame; x1.02 for margin.
+# The filter string contains no spaces, so unquoted $VF expands to exactly "-vf <filter>".
+VF=""
+if [ "$level" != "0" ]; then
+    zoom=$(python3 -c "import math; a=abs($level)*math.pi/180; print((math.cos(a)+(16.0/9.0)*math.sin(a))*1.02)")
+    rot=$(python3 -c "import math; print($level*math.pi/180.0)")
+    VF="-vf scale=iw*${zoom}:ih*${zoom},rotate=${rot}:fillcolor=black,crop=1920:1080"
+    echo "`date`: leveling horizon by ${level} deg (zoom ${zoom})" >> $LOG_FILE
+fi
 # Encode at native 1920x1080 (no downscale) with a lower CRF for higher quality. Kept 8-bit
 # yuv420p for broad player/Bluesky compatibility (10-bit would reduce sky banding but risks
 # playback/transcode issues on the posted video).
-ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" -c:v libx264 -crf 18 -pix_fmt yuv420p $ROOT/final/$today.mp4 || { echo "`date`: ffmpeg failed" >> $LOG_FILE; exit 1; }
+ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" $VF -c:v libx264 -crf 18 -pix_fmt yuv420p $ROOT/final/$today.mp4 || { echo "`date`: ffmpeg failed" >> $LOG_FILE; exit 1; }
 
 # upload movie to Bluesky
 if [ $post = 1 ]; then
