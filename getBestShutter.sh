@@ -4,9 +4,12 @@
 ### getBestShutter.sh
 ###
 ### Find the best shutter speed for current lighting (as estimated by number of unique
-### colors computed by imagemagick identify). Scans the full exposure range from a long
-### exposure down to a short one in ~2/3-stop steps and picks the shutter with the most
-### unique colors (a well-exposed frame has more tonal variety than a blown or crushed one).
+### colors in the TOP HALF of the frame -- the sky -- computed by imagemagick identify).
+### Metering the sky (not the colour-rich foreground foliage, which would otherwise dominate
+### the count and drive the sky to blow out) protects the sky; the foreground is allowed to
+### fall to silhouette. Scans the full exposure range from a long exposure down to a short one
+### in ~2/3-stop steps and picks the shutter with the most unique colours (a well-exposed
+### region has more tonal variety than a blown or crushed one).
 ###
 ### Outputs the chosen shutter speed (microseconds) to $ROOT/tmp/shutter
 ###
@@ -48,10 +51,12 @@ while [ $shutter -ge $min_shutter ]; do
     wait $CAMERA_PID
     CAMERA_PID=""
 
-    # use imagemagick to get number of unique colors -- see https://imagemagick.org/script/escape.php
-    numColors=$(identify -format %k "$ROOT/tmp/test.jpg" 2>/dev/null)
+    # count unique colours in the TOP HALF only (sky region) of the 1920x1080 capture, so the
+    # exposure is metered for the sky rather than the colour-rich foreground foliage.
+    # The [WxH+X+Y] suffix crops on read -- see https://imagemagick.org/script/escape.php
+    numColors=$(identify -format %k "$ROOT/tmp/test.jpg[1920x540+0+0]" 2>/dev/null)
     numColors=${numColors:-0}
-    echo "Shutter ${shutter}us has $numColors unique colors" >> $LOG_FILE
+    echo "Shutter ${shutter}us has $numColors unique colors (sky/top-half)" >> $LOG_FILE
     rm -f $ROOT/tmp/test.jpg
 
     # keep the best-exposed (most unique colours) shutter seen so far
