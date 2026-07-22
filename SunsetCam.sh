@@ -13,8 +13,7 @@
 ### USAGE: ./SunsetCam.sh [-i <interval -- time between shots>] [-n <total number of shots to take>]
 ###              [-e <1/0> -- perform initial empirical exposure test] [-d <1/0> -- perform deflicker in post]
 ###              [-t <1/0> -- post movie to Bluesky] [-c <exposure compensation index, 0..30, 15=0EV>]
-###              [-a <1/0> -- ramp shutter from calibrated start up to ramp_max_shutter over the run]
-###              [-r <ramp_max_shutter_us> -- ceiling for the exposure ramp in microseconds (default 500000)]
+###              [-a <1/0> -- gentle exposure ramp: ease the shutter up over the run (see RAMP_STOPS/RAMP_START_FRAC)]
 ###              [-b <1/0> -- copy photos to backup server]
 ###              [-l <degrees> -- rotate frames to level the horizon in the final video; + = clockwise]
 
@@ -45,7 +44,14 @@ backup=1
 message=""
 level=0
 
-ramp_max_shutter=500000   # 0.5s ceiling: shutter ramps from calibrated start to here over the full run (-a mode)
+# Gentle exposure ramp (-a 1): from the sky-metered baseline, ease the shutter UP over the run
+# to partially offset the fading light -- so the pre-sunset sky stays protected (flat start),
+# the sunset/dusk hold detail longer, and it STILL fades to black (the lift is far smaller than
+# the ambient light loss). Deterministic (no per-frame metering), so there is no flicker.
+#   RAMP_STOPS       = total EV lift by the end of the run
+#   RAMP_START_FRAC  = fraction of the run to stay flat before the lift eases in (smoothstep)
+RAMP_STOPS=1.5
+RAMP_START_FRAC=0.35
 
 # Default shutter (in microseconds) used when -e 0 (no calibration). 1/100s is a reasonable
 # starting point for golden hour; the autoexposure loop will adjust from here.
@@ -72,7 +78,7 @@ AWB_GAINS="2.34,1.67"
 DENOISE=cdn_hq
 
 # read in command-line options
-while getopts ":i:n:e:d:t:c:a:r:b:m:l:" opt; do
+while getopts ":i:n:e:d:t:c:a:b:m:l:" opt; do
   case $opt in
     i) interval="$OPTARG"
     ;;
@@ -87,8 +93,6 @@ while getopts ":i:n:e:d:t:c:a:r:b:m:l:" opt; do
     c) compensation="$OPTARG"
     ;;
     a) autoexposure="$OPTARG"
-    ;;
-    r) ramp_max_shutter="$OPTARG"
     ;;
     b) backup="$OPTARG"
     ;;
@@ -151,22 +155,23 @@ echo "`date`: shutter after compensation (${compDiff}/3 stops) = ${shutter}us" >
 echo "`date`: Executing photo capture (autoexposure=$autoexposure)" >> $LOG_FILE
 start_shutter=$shutter
 if [ $autoexposure = 1 ]; then
-    if [ $start_shutter -ge $ramp_max_shutter ]; then
-        echo "`date`: WARNING: start_shutter (${start_shutter}us) >= ramp_max_shutter (${ramp_max_shutter}us), ramp disabled" >> $LOG_FILE
-        autoexposure=0
-    else
-        echo "`date`: exposure ramp: ${start_shutter}us -> ${ramp_max_shutter}us over $num frames" >> $LOG_FILE
-    fi
+    end_shutter=$(python3 -c "print(int($start_shutter * 2 ** $RAMP_STOPS))")
+    echo "`date`: gentle exposure ramp: ${start_shutter}us flat until ${RAMP_START_FRAC} of run, then eased up to ${end_shutter}us (+${RAMP_STOPS} stops) by the end" >> $LOG_FILE
 fi
 SECONDS=0
 STARTTIME=`date "+%F %T"`
 
 for i in `seq 1 $num`; do
     if [ $autoexposure = 1 ]; then
+        # Gentle ramp: hold the sky-metered baseline until RAMP_START_FRAC of the run, then ease
+        # the shutter up by up to RAMP_STOPS EV via a smoothstep (zero slope at the start = no
+        # visible kink). The lift only partially offsets the fading light, so it still fades out.
         shutter=$(python3 -c "
-s0=$start_shutter; smax=$ramp_max_shutter; i=$i; n=$num
-ratio = max(smax / s0, 1.0)
-print(int(s0 * ratio ** ((i - 1) / max(n - 1, 1))))
+s0=$start_shutter; i=$i; n=$num; stops=$RAMP_STOPS; f=$RAMP_START_FRAC
+p = (i - 1) / max(n - 1, 1)
+u = max((p - f) / max(1 - f, 1e-9), 0.0)   # 0 while flat, then 0->1 over [f,1]
+s = u * u * (3 - 2 * u)                     # smoothstep
+print(int(s0 * 2 ** (stops * s)))
 ")
     fi
 
