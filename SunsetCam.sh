@@ -13,7 +13,7 @@
 ### USAGE: ./SunsetCam.sh [-i <interval -- time between shots>] [-n <total number of shots to take>]
 ###              [-e <1/0> -- perform initial empirical exposure test] [-d <1/0> -- perform deflicker in post]
 ###              [-t <1/0> -- post movie to Bluesky] [-c <exposure compensation index, 0..30, 15=0EV>]
-###              [-a <1/0> -- gentle exposure ramp: ease the shutter up over the run (see RAMP_STOPS/RAMP_START_FRAC)]
+###              [-a <1/0> -- gentle exposure ramp toward a target shutter (see RAMP_TARGET_SHUTTER/RAMP_START_FRAC/RAMP_TARGET_FRAC)]
 ###              [-b <1/0> -- copy photos to backup server]
 ###              [-l <degrees> -- rotate frames to level the horizon in the final video; + = clockwise]
 
@@ -44,14 +44,19 @@ backup=1
 message=""
 level=0
 
-# Gentle exposure ramp (-a 1): from the sky-metered baseline, ease the shutter UP over the run
-# to partially offset the fading light -- so the pre-sunset sky stays protected (flat start),
-# the sunset/dusk hold detail longer, and it STILL fades to black (the lift is far smaller than
-# the ambient light loss). Deterministic (no per-frame metering), so there is no flicker.
-#   RAMP_STOPS       = total EV lift by the end of the run
-#   RAMP_START_FRAC  = fraction of the run to stay flat before the lift eases in (smoothstep)
-RAMP_STOPS=1.5
-RAMP_START_FRAC=0.35
+# Gentle exposure ramp (-a 1): hold the sky-metered baseline flat until RAMP_START_FRAC of the run,
+# then ease the shutter up (smoothstep) to RAMP_TARGET_SHUTTER by RAMP_TARGET_FRAC (~the sunset
+# moment) and hold it there. This protects the bright pre-sunset (flat short baseline), gives a
+# well-exposed sunset, then fades to black naturally as the light keeps dropping at the held target.
+# Using a fixed TARGET SHUTTER (not a fixed +EV) auto-adapts to conditions: a big lift on clear
+# evenings (very short sky baseline) and little/none on overcast (long baseline). The target is
+# clamped to >= the baseline, so the ramp only ever lifts, never darkens. Deterministic -> no flicker.
+#   RAMP_TARGET_SHUTTER = shutter (us) the ramp climbs to (a good sunset / dim-dusk exposure)
+#   RAMP_START_FRAC     = fraction of the run to stay flat before the lift eases in
+#   RAMP_TARGET_FRAC    = fraction of the run at which the target is reached, then held
+RAMP_TARGET_SHUTTER=18000
+RAMP_START_FRAC=0.25
+RAMP_TARGET_FRAC=0.55
 
 # Default shutter (in microseconds) used when -e 0 (no calibration). 1/100s is a reasonable
 # starting point for golden hour; the autoexposure loop will adjust from here.
@@ -155,23 +160,24 @@ echo "`date`: shutter after compensation (${compDiff}/3 stops) = ${shutter}us" >
 echo "`date`: Executing photo capture (autoexposure=$autoexposure)" >> $LOG_FILE
 start_shutter=$shutter
 if [ $autoexposure = 1 ]; then
-    end_shutter=$(python3 -c "print(int($start_shutter * 2 ** $RAMP_STOPS))")
-    echo "`date`: gentle exposure ramp: ${start_shutter}us flat until ${RAMP_START_FRAC} of run, then eased up to ${end_shutter}us (+${RAMP_STOPS} stops) by the end" >> $LOG_FILE
+    target_shutter=$(python3 -c "print(max($RAMP_TARGET_SHUTTER, $start_shutter))")
+    echo "`date`: gentle exposure ramp: ${start_shutter}us flat until ${RAMP_START_FRAC} of run, eased up to ${target_shutter}us by ${RAMP_TARGET_FRAC} then held (target ${RAMP_TARGET_SHUTTER}us, clamped >= baseline)" >> $LOG_FILE
 fi
 SECONDS=0
 STARTTIME=`date "+%F %T"`
 
 for i in `seq 1 $num`; do
     if [ $autoexposure = 1 ]; then
-        # Gentle ramp: hold the sky-metered baseline until RAMP_START_FRAC of the run, then ease
-        # the shutter up by up to RAMP_STOPS EV via a smoothstep (zero slope at the start = no
-        # visible kink). The lift only partially offsets the fading light, so it still fades out.
+        # Gentle ramp: hold the sky-metered baseline until RAMP_START_FRAC, then smoothstep the
+        # shutter up (geometric = smooth in EV) to RAMP_TARGET_SHUTTER by RAMP_TARGET_FRAC and hold.
+        # target is clamped to >= baseline so it only lifts; the held target then fades as light drops.
         shutter=$(python3 -c "
-s0=$start_shutter; i=$i; n=$num; stops=$RAMP_STOPS; f=$RAMP_START_FRAC
+s0=$start_shutter; i=$i; n=$num; f=$RAMP_START_FRAC; g=$RAMP_TARGET_FRAC
+target=max($RAMP_TARGET_SHUTTER, s0)
 p = (i - 1) / max(n - 1, 1)
-u = max((p - f) / max(1 - f, 1e-9), 0.0)   # 0 while flat, then 0->1 over [f,1]
-s = u * u * (3 - 2 * u)                     # smoothstep
-print(int(s0 * 2 ** (stops * s)))
+u = min(max((p - f) / max(g - f, 1e-9), 0.0), 1.0)   # 0 flat, 0->1 over [f,g], 1 (held) after
+s = u * u * (3 - 2 * u)                               # smoothstep
+print(int(s0 * (target / s0) ** s))
 ")
     fi
 
