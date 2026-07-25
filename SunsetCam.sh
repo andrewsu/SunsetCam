@@ -55,8 +55,8 @@ level=0
 #   RAMP_START_FRAC     = fraction of the run to stay flat before the lift eases in
 #   RAMP_TARGET_FRAC    = fraction of the run at which the target is reached, then held
 RAMP_TARGET_SHUTTER=18000
-RAMP_START_FRAC=0.25
-RAMP_TARGET_FRAC=0.55
+RAMP_START_FRAC=0.40
+RAMP_TARGET_FRAC=0.70
 
 # Default shutter (in microseconds) used when -e 0 (no calibration). 1/100s is a reasonable
 # starting point for golden hour; the autoexposure loop will adjust from here.
