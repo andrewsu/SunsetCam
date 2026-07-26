@@ -77,16 +77,24 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
         timeout=300,
     )
     print(f"uploadVideo HTTP {upload.status_code}: {upload.text}")
-    upload.raise_for_status()
-    body = upload.json()
-    # Success returns {"jobStatus": {...}}; "already_exists" returns a flat
-    # dict with the existing jobId, which we can pick up via getJobStatus.
-    if body.get("error") == "already_exists" and body.get("jobId"):
+    try:
+        body = upload.json()
+    except Exception:
+        body = {}
+
+    # The video service returns 409 "already_exists" when this DID has already
+    # uploaded a video with this filename (e.g. reposting the same file). The
+    # response still carries the existing jobId, so we recover the blob via
+    # getJobStatus instead of failing. This must be checked BEFORE raise_for_status
+    # (which would otherwise abort on the 409).
+    if upload.status_code == 409 and body.get("error") == "already_exists" and body.get("jobId"):
         job_id = body["jobId"]
         print(f"Video already processed, reusing job_id={job_id}")
-    elif "error" in body and "jobStatus" not in body:
-        sys.exit(f"uploadVideo error: {body.get('error')} — {body.get('message')}")
     else:
+        upload.raise_for_status()
+        # Success returns {"jobStatus": {...}}.
+        if "error" in body and "jobStatus" not in body:
+            sys.exit(f"uploadVideo error: {body.get('error')} — {body.get('message')}")
         job_status = body.get("jobStatus") or {}
         job_id = job_status.get("jobId") or body.get("jobId")
         if not job_id:
