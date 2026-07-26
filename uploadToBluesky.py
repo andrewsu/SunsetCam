@@ -55,10 +55,13 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
     print(f"PDS host: {pds_host}")
     print(f"Service auth aud: {aud}")
 
+    # The video service validates the service-auth token's lxm claim against
+    # com.atproto.repo.uploadBlob (NOT app.bsky.video.uploadVideo, which now 401s
+    # with "should be com.atproto.repo.uploadBlob").
     auth = client.com.atproto.server.get_service_auth(
         models.ComAtprotoServerGetServiceAuth.Params(
             aud=aud,
-            lxm="app.bsky.video.uploadVideo",
+            lxm="com.atproto.repo.uploadBlob",
             exp=int(time.time()) + 30 * 60,
         )
     )
