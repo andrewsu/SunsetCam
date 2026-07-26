@@ -20,27 +20,21 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 source "$CONFIG_FILE"
 
-# Initialize parameters
-message=""
+# All arguments are forwarded straight through to uploadToBluesky.py (which uses
+# argparse and understands -m/-f plus the newer --comment/--date/--mention/--tags
+# long options). We only peek at -f/--file here for the existence check + log line.
 file=""
-
-# read in command-line options
-while getopts ":m:f:" opt; do
-  case $opt in
-    m) message="$OPTARG"
-    ;;
-    f) file="$OPTARG"
-    ;;
-    \?) echo "Invalid option -$OPTARG" >&2
-    ;;
-  esac
+prev=""
+for arg in "$@"; do
+    case "$prev" in -f|--file) file="$arg" ;; esac
+    prev="$arg"
 done
 
 echo "`date`: Uploading $file to Bluesky"
 
-if [ ! -f "$file" ]; then
+if [ -n "$file" ] && [ ! -f "$file" ]; then
      echo "Media file not found! Exiting..."
      exit 1
 fi
 
-$ROOT/uploadToBluesky.py -m "$message" -f "$file"
+$ROOT/uploadToBluesky.py "$@"

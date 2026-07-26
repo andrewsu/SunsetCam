@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 
 import httpx
 from dotenv import load_dotenv
-from atproto import Client
+from atproto import Client, client_utils
 from atproto_client import models
 from atproto_client.models.blob_ref import BlobRef
 
@@ -122,11 +122,96 @@ def upload_and_wait(client: Client, video_bytes: bytes, filename: str) -> "model
         time.sleep(POLL_INTERVAL_SEC)
 
 
+def resolve_did(handle: str):
+    """Resolve a Bluesky handle to its DID via the public API (no auth needed).
+
+    Returns the DID string, or None if resolution fails — callers then fall back
+    to rendering the handle as plain text instead of a linked mention.
+    """
+    try:
+        resp = httpx.get(
+            "https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle",
+            params={"handle": handle},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("did")
+    except Exception as e:  # noqa: BLE001 - best-effort; degrade to plain text
+        print(f"Could not resolve @{handle} to a DID: {e}")
+        return None
+
+
+def build_post_text(message: str, comment: str, date_str: str, mention: str, tags: str):
+    """Assemble the post as atproto rich text with real tag/mention facets.
+
+    Layout:
+        <editorial comment>          (optional, from the Claude CLI)
+
+        <message> — <date>          (framing line, e.g. "Sunset over Scripps Research — Sunday, July 26, 2026")
+        #tag1 #tag2 @mention        (clickable hashtag + mention facets)
+    """
+    tb = client_utils.TextBuilder()
+    written = False
+
+    comment = (comment or "").strip()
+    if comment:
+        tb.text(comment)
+        written = True
+
+    frame_line = (message or "").strip()
+    date_str = (date_str or "").strip()
+    if date_str:
+        frame_line = f"{frame_line} — {date_str}" if frame_line else date_str
+    if frame_line:
+        if written:
+            tb.text("\n\n")
+        tb.text(frame_line)
+        written = True
+
+    tag_list = [t.strip().lstrip("#") for t in (tags or "").split(",") if t.strip()]
+    if tag_list or mention:
+        if written:
+            tb.text("\n")
+        first = True
+        for tag in tag_list:
+            if not first:
+                tb.text(" ")
+            tb.tag(f"#{tag}", tag)
+            first = False
+        if mention:
+            handle = mention.lstrip("@")
+            if not first:
+                tb.text(" ")
+            did = resolve_did(handle)
+            if did:
+                tb.mention(f"@{handle}", did)
+            else:
+                tb.text(f"@{handle}")
+            first = False
+
+    return tb
+
+
 def main():
     parser = argparse.ArgumentParser(description="Post a video to Bluesky.")
-    parser.add_argument("-m", "--message", default="", help="Post text")
+    parser.add_argument("-m", "--message", default="", help="Framing line (e.g. 'Sunset over Scripps Research')")
     parser.add_argument("-f", "--file", required=True, help="Path to mp4 video")
+    parser.add_argument("--comment", default="", help="Editorial caption line (from the Claude CLI)")
+    parser.add_argument("--date", default="", help="Human-readable date appended to the framing line")
+    parser.add_argument("--mention", default="", help="Bluesky handle to @-mention (e.g. scripps.edu)")
+    parser.add_argument("--tags", default="", help="Comma-separated hashtags without '#' (e.g. sunset,timelapse)")
+    parser.add_argument("--dry-run", action="store_true", help="Print the composed post and facets, then exit without posting")
     args = parser.parse_args()
+
+    post = build_post_text(args.message, args.comment, args.date, args.mention, args.tags)
+
+    if args.dry_run:
+        print("--- post text ---")
+        print(post.build_text())
+        print("--- facets ---")
+        for facet in post.build_facets():
+            print(facet.model_dump_json())
+        return
 
     load_dotenv(Path(__file__).resolve().parent / ".env")
     handle = os.environ.get("BLUESKY_HANDLE")
@@ -145,7 +230,7 @@ def main():
     blob = upload_and_wait(client, video_bytes, video_path.name)
 
     response = client.send_post(
-        text=args.message,
+        text=post,
         embed=models.AppBskyEmbedVideo.Main(video=blob, alt="SunsetCam timelapse"),
     )
     print(f"Posted to Bluesky: {response.uri}")

@@ -238,7 +238,29 @@ ffmpeg -y -pattern_type glob -i "$IMAGEDIR/*.jpg" $VF -c:v libx264 -crf 18 -pix_
 # upload movie to Bluesky
 if [ $post = 1 ]; then
     echo "`date`: posting to Bluesky" >> $LOG_FILE
-    $ROOT/uploadToBluesky.sh -m "$message (${STARTTIME} - ${ENDTIME})" -f $ROOT/final/$today.mp4 >> $LOG_FILE 2>&1
+
+    # Human-readable date for the post, e.g. "Sunday, July 26, 2026".
+    postdate=$(date "+%A, %B %-d, %Y")
+
+    # Ask the local Claude Code CLI to look at a few frames of today's video and
+    # write a one-line editorial caption. Best-effort: if it fails (CLI missing /
+    # unauthenticated / timeout), $comment stays empty and we post without a
+    # caption rather than skipping the post entirely.
+    comment=""
+    if [ -x "$ROOT/editorialComment.sh" ]; then
+        comment=$("$ROOT/editorialComment.sh" -f "$ROOT/final/$today.mp4" 2>>"$LOG_FILE")
+        if [ -n "$comment" ]; then
+            echo "`date`: editorial caption: $comment" >> $LOG_FILE
+        else
+            echo "`date`: no editorial caption; posting plain message" >> $LOG_FILE
+        fi
+    fi
+
+    # Date + @scripps.edu mention + clickable hashtags are added by the uploader.
+    # Tags/mention are the sunset defaults; only the sunset run posts (-t 1).
+    $ROOT/uploadToBluesky.sh -m "$message" --comment "$comment" --date "$postdate" \
+        --mention scripps.edu --tags "sunset,timelapse" \
+        -f "$ROOT/final/$today.mp4" >> $LOG_FILE 2>&1
 fi
 
 # clean up
