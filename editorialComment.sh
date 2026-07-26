@@ -36,6 +36,18 @@ CLAUDE_BIN="${CLAUDE_BIN:-$(command -v claude 2>/dev/null)}"
 [ -n "$CLAUDE_BIN" ] && [ -x "$CLAUDE_BIN" ] || CLAUDE_BIN="$HOME/.npm-global/bin/claude"
 [ -x "$CLAUDE_BIN" ] || { echo "editorialComment: claude CLI not found" >&2; exit 1; }
 
+# The claude CLI reads its auth from $CLAUDE_CODE_OAUTH_TOKEN. A non-interactive
+# at/cron job doesn't inherit it, so load it from .env (same file the Bluesky
+# creds live in) if it isn't already in the environment.
+if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+    ENV_FILE="$(dirname "$0")/.env"
+    if [ -f "$ENV_FILE" ]; then
+        tok="$(grep -E '^[[:space:]]*CLAUDE_CODE_OAUTH_TOKEN=' "$ENV_FILE" | tail -n1 | cut -d= -f2- | tr -d '\r')"
+        tok="${tok%\"}"; tok="${tok#\"}"; tok="${tok%\'}"; tok="${tok#\'}"
+        [ -n "$tok" ] && export CLAUDE_CODE_OAUTH_TOKEN="$tok"
+    fi
+fi
+
 # Scratch dir for the extracted frames (cleaned up on exit).
 tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/editorial.XXXXXX")" || exit 1
 trap 'rm -rf "$tmpdir"' EXIT
