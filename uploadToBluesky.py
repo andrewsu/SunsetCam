@@ -149,6 +149,34 @@ def resolve_did(handle: str):
         return None
 
 
+def already_posted(handle: str, marker: str) -> bool:
+    """True if a recent post by `handle` already contains `marker`.
+
+    Guards the retry/catch-up path (postPending.sh): if send_post succeeded but the
+    reply was lost to a dropped link, the entry stays spooled and gets retried, and
+    without this check that retry would publish a duplicate. The marker used is the
+    post's date line, which is unique per run.
+
+    A failed check returns False on purpose -- if we can't reach the API we are about
+    to fail the upload anyway, and refusing to post is worse than the race we're
+    guarding against.
+    """
+    try:
+        resp = httpx.get(
+            "https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed",
+            params={"actor": handle, "limit": 30},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        for item in resp.json().get("feed", []):
+            text = ((item.get("post") or {}).get("record") or {}).get("text") or ""
+            if marker in text:
+                return True
+    except Exception as e:  # noqa: BLE001 - best-effort duplicate guard
+        print(f"Could not check for an existing post: {e}")
+    return False
+
+
 def build_post_text(message: str, comment: str, date_str: str, mention: str, tags: str):
     """Assemble the post as atproto rich text with real tag/mention facets.
 
@@ -208,6 +236,7 @@ def main():
     parser.add_argument("--date", default="", help="Human-readable date appended to the framing line")
     parser.add_argument("--mention", default="", help="Bluesky handle to @-mention (e.g. scripps.edu)")
     parser.add_argument("--tags", default="", help="Comma-separated hashtags without '#' (e.g. sunset,timelapse)")
+    parser.add_argument("--skip-if-posted", default="", help="Exit 0 without posting if a recent post already contains this text (duplicate guard for retries)")
     parser.add_argument("--dry-run", action="store_true", help="Print the composed post and facets, then exit without posting")
     args = parser.parse_args()
 
@@ -230,6 +259,12 @@ def main():
     video_path = Path(args.file)
     if not video_path.is_file():
         sys.exit(f"Video file not found: {video_path}")
+
+    # Checked before the (slow, expensive) video upload, and via the public API so
+    # it costs nothing but one GET.
+    if args.skip_if_posted and already_posted(handle, args.skip_if_posted):
+        print(f"Already posted (found {args.skip_if_posted!r} in a recent post); nothing to do")
+        return
 
     client = Client()
     client.login(handle, app_password)

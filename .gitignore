@@ -1,6 +1,7 @@
 final/
 img/
 tmp/
+pending/
 log
 *.swp
 config.txt

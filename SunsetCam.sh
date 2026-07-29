@@ -82,6 +82,11 @@ AWB_GAINS="2.34,1.67"
 # noisy low-light frames at the dusk end of the run. Applied to all frames for simplicity.
 DENOISE=cdn_hq
 
+# How long (seconds) to keep retrying the Bluesky post inline before leaving it to
+# the cron sweep. 2400s covers the ~30-minute link outages this Pi actually logs, so
+# the common case still posts within the run rather than waiting on the sweep.
+POST_RETRY_BUDGET_SEC=2400
+
 # read in command-line options
 while getopts ":i:n:e:d:t:c:a:b:m:l:" opt; do
   case $opt in
@@ -242,25 +247,20 @@ if [ $post = 1 ]; then
     # Human-readable date for the post, e.g. "Sunday, July 26, 2026".
     postdate=$(date "+%A, %B %-d, %Y")
 
-    # Ask the local Claude Code CLI to look at a few frames of today's video and
-    # write a one-line editorial caption. Best-effort: if it fails (CLI missing /
-    # unauthenticated / timeout), $comment stays empty and we post without a
-    # caption rather than skipping the post entirely.
-    comment=""
-    if [ -x "$ROOT/editorialComment.sh" ]; then
-        comment=$("$ROOT/editorialComment.sh" -f "$ROOT/final/$today.mp4" 2>>"$LOG_FILE")
-        if [ -n "$comment" ]; then
-            echo "`date`: editorial caption: $comment" >> $LOG_FILE
-        else
-            echo "`date`: no editorial caption; posting plain message" >> $LOG_FILE
-        fi
+    # Spool the post, then hand it to postPending.sh to deliver with retries. We no
+    # longer call the uploader directly: this Pi's wifi drops for 30+ minutes at a
+    # time and an outage over the posting window used to lose the day's post outright
+    # (video finished in final/, uploader dead on a DNS failure, script moved on).
+    # Anything the budget below can't deliver stays spooled for the cron sweep.
+    # The editorial caption is generated inside postPending.sh so that a retry can
+    # produce one even when the first attempt had no network to reach the CLI.
+    spool=$($ROOT/postPending.sh --enqueue -f "$ROOT/final/$today.mp4" -m "$message" \
+        --date "$postdate" --mention scripps.edu --tags "sunset,timelapse" 2>>$LOG_FILE)
+    if [ -n "$spool" ]; then
+        $ROOT/postPending.sh --budget $POST_RETRY_BUDGET_SEC "$spool" >> $LOG_FILE 2>&1
+    else
+        echo "`date`: could not spool the post; skipping" >> $LOG_FILE
     fi
-
-    # Date + @scripps.edu mention + clickable hashtags are added by the uploader.
-    # Tags/mention are the sunset defaults; only the sunset run posts (-t 1).
-    $ROOT/uploadToBluesky.sh -m "$message" --comment "$comment" --date "$postdate" \
-        --mention scripps.edu --tags "sunset,timelapse" \
-        -f "$ROOT/final/$today.mp4" >> $LOG_FILE 2>&1
 fi
 
 # clean up

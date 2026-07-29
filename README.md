@@ -19,6 +19,11 @@ Bluesky.
   steps and picks the one with the most unique colors (per `imagemagick identify`).
 - `calc_brightness_pil_histogram.py` — PIL-based luminance check used by the
   auto-exposure feedback loop.
+- `editorialComment.sh` — pulls a few frames from the finished mp4 and asks the local
+  Claude Code CLI for a one-line editorial caption. Best-effort: on any failure the post
+  goes out without a caption.
+- `postPending.sh` — spools the intended post and delivers it with retries, so a wifi
+  outage over the posting window doesn't lose the day's post. See *Post delivery* below.
 - `uploadToBluesky.sh` / `uploadToBluesky.py` — post the finished mp4 to Bluesky using
   the `atproto` SDK; credentials read from `.env`.
 
@@ -91,7 +96,36 @@ Bluesky.
    Add:
    ```
    0 1 * * * /home/asu/SunsetCam/scheduler.sh
+   */15 * * * * /home/asu/SunsetCam/postPending.sh >> /home/asu/SunsetCam/log 2>&1
    ```
+   The second line is the catch-up sweep — see below.
+
+## Post delivery
+
+This camera is on wifi that drops 20-38 times a day, sometimes for 30+ minutes. An
+outage over the posting window used to lose the day's post outright: the mp4 was
+already finished in `final/`, but the uploader died on a DNS failure and `SunsetCam.sh`
+moved on to cleanup. Posting is therefore split from capture:
+
+1. `SunsetCam.sh` writes a spool entry to `pending/<video>.post` describing the post
+   (video path, message, date, mention, tags) and hands it to `postPending.sh`.
+2. `postPending.sh` waits for the link to actually work (DNS resolution plus a live
+   request to `bsky.social/xrpc/_health` — the interface being up isn't enough), then
+   generates the caption and posts. On failure it retries on a front-loaded backoff
+   (0, 1, 2, 5, 10, 15 min) within the budget it was given.
+3. Anything still undelivered when the budget runs out stays spooled. The `*/15` cron
+   sweep retries it whenever the link comes back, up to `MAX_AGE_HOURS` (12) after the
+   spool was created, then moves it to `pending/expired/`.
+
+A successful post deletes the spool entry. Two further guards stop duplicates: `flock`
+keeps the in-run attempt and the cron sweep from racing, and `uploadToBluesky.py
+--skip-if-posted` checks the live feed for the post's date line before uploading, which
+covers the case where `send_post` succeeded but the reply was lost with the link.
+
+Useful knobs: `POST_RETRY_BUDGET_SEC` in `SunsetCam.sh` (how long to keep trying inside
+the run, default 2400s) and `MAX_AGE_HOURS` in `postPending.sh`.
+
+To deliver a stuck post by hand: `./postPending.sh --budget 600`
 
 ## Manual run
 
