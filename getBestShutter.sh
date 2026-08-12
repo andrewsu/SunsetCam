@@ -8,9 +8,15 @@
 ### Metering the sky (not the colour-rich foreground foliage, which would otherwise dominate
 ### the count and drive the sky to blow out) protects the sky; the foreground is allowed to
 ### fall to silhouette. Scans the full exposure range from a long exposure down to a short one
-### in ~2/3-stop steps and picks the shutter with the most unique colours (a well-exposed
-### region has more tonal variety than a blown or crushed one) -- subject to a hard cap on how
-### much of the sky it is allowed to blow to white (see CLIP_MAX_BP below).
+### in ~2/3-stop steps, then selects in three stages:
+###
+###   1. reject any candidate blowing more than CLIP_MAX_BP of the sky to white,
+###   2. find the peak unique-colour count among the survivors (a well-exposed region has more
+###      tonal variety than a blown or crushed one),
+###   3. among candidates within TIE_BREAK_PCT of that peak, take the LONGEST shutter.
+###
+### Stage 3 exists because %k's peak is flat-topped and sits at the dark end of it, which
+### under-exposed the whole run on 2026-08-10 (see TIE_BREAK_PCT below).
 ###
 ### Outputs the chosen shutter speed (microseconds) to $ROOT/tmp/shutter
 ###
@@ -37,6 +43,12 @@ trap '[ -n "$CAMERA_PID" ] && kill "$CAMERA_PID" 2>/dev/null; exit 1' INT TERM H
 
 bestNumColors=-1
 bestShutter=10000
+peakShutter=""
+
+# Every candidate that cleared the clipping cap, in scan order (longest shutter first).
+allowedShutters=()
+allowedColors=()
+allowedClipKnown=()
 
 # Highlight cap. `identify %k` counts tonal variety but has no notion of clipping, and on a
 # low-contrast marine-layer sky the criterion inverts: shortening the exposure quantises the
@@ -54,6 +66,26 @@ bestShutter=10000
 # raises the floor; if a good night ever gets rejected, raise this rather than lowering it.
 CLIP_MAX_BP=2500   # basis points (10000 = 100%) of the sky allowed at or above CLIP_LEVEL
 CLIP_LEVEL=250     # gamma-encoded luma at which a pixel reads as pure white
+
+# Long-biased tie-break. The cap above stops %k over-exposing, but %k still picks the *bottom*
+# of its own flat peak, which under-exposes the run. On 2026-08-10 (clear, sun setting into
+# cloud) the scan peaked at 25318 colours @1677us with 4188us only 7.5% behind at 23427 -- and
+# 1677us blew just 0.93% of the sky against the 25% cap, leaving ~24 points of headroom unused.
+# The result was ~1.3 stops under-exposed: a dim sunset and 4.8s of the 24s video near-black.
+# Picking 4188us instead would have matched a night judged good (frame-1 sky 0.20 vs 0.22) while
+# clipping LESS than that night did (5.95% vs 8.48%).
+#
+# So among candidates within TIE_BREAK_PCT of the peak count, prefer the longest. Direction is
+# deliberate: the mirror-image rule ("shortest within a few percent") was considered on
+# 2026-08-09 and rejected because it would have picked 1061us on Aug 7, 0.67 stops darker than
+# the 1677us that looked right. Clipping is what bounds over-exposure here, not %k.
+#
+# 8 is set from the Aug 10 spread: wide enough to reach 4188us (-7.5%) but not the visibly
+# over-exposed 6618us (-11.1%, 16.1% blown). Widen it for a brighter, longer dusk at the cost of
+# more clipped sky; narrow it toward 0 to fall back to plain peak-%k behaviour. Because it is a
+# relative window it does nothing when the peak is genuinely sharp -- on a hazy night where %k
+# goes flat and degenerate, the cap remains the real constraint.
+TIE_BREAK_PCT=8    # % below the peak colour count still eligible; the longest of those wins
 
 # Least-blown candidate seen, used only if NOTHING clears the cap (a very bright, very flat sky).
 fallbackShutter=""
@@ -94,10 +126,17 @@ while [ $shutter -ge $min_shutter ]; do
         fi
     else
         echo "Shutter ${shutter}us has $numColors unique colors (sky/top-half), ${clipBp:-?}bp blown" >> $LOG_FILE
-        # keep the best-exposed (most unique colours) shutter among those within the cap
+        # Record every candidate within the cap. Selection needs the peak count, which is not
+        # known until the scan finishes, so the choice is made below rather than here.
+        # clipKnown distinguishes "measured, and under the cap" from "unmeasurable, allowed
+        # through by the fail-open above" -- only the former may be promoted by the long-biased
+        # tie-break, which relies on clipping to bound how far it can reach.
+        allowedShutters+=("$shutter")
+        allowedColors+=("$numColors")
+        if [ -n "$clipBp" ]; then allowedClipKnown+=(1); else allowedClipKnown+=(0); fi
         if (( numColors > bestNumColors )); then
             bestNumColors=$numColors
-            bestShutter=$shutter
+            peakShutter=$shutter
         fi
     fi
     shutter=$(($shutter * 100 / 158))
@@ -115,6 +154,25 @@ if [ "$bestNumColors" -le 0 ]; then
         exit 1
     fi
 else
-    echo "best shutter: ${bestShutter}us ($bestNumColors unique colors)" >> $LOG_FILE
+    # Long-biased tie-break: of the candidates within TIE_BREAK_PCT of the peak colour count,
+    # take the longest shutter. The scan runs longest -> shortest, so the first qualifying entry
+    # is the longest one. Requiring > 0 colours keeps a failed `identify` (0) from winning the
+    # window when the peak is tiny enough that the threshold rounds to 0.
+    threshold=$(( bestNumColors * (100 - TIE_BREAK_PCT) / 100 ))
+    bestShutter=$peakShutter
+    chosenColors=$bestNumColors
+    for i in "${!allowedShutters[@]}"; do
+        if (( allowedClipKnown[i] == 1 && allowedColors[i] >= threshold && allowedColors[i] > 0 )); then
+            bestShutter=${allowedShutters[i]}
+            chosenColors=${allowedColors[i]}
+            break
+        fi
+    done
+
+    if [ "$bestShutter" != "$peakShutter" ]; then
+        echo "best shutter: ${bestShutter}us ($chosenColors unique colors) -- longest within ${TIE_BREAK_PCT}% of the ${bestNumColors}-colour peak at ${peakShutter}us" >> $LOG_FILE
+    else
+        echo "best shutter: ${bestShutter}us ($bestNumColors unique colors)" >> $LOG_FILE
+    fi
 fi
 echo $bestShutter > $ROOT/tmp/shutter

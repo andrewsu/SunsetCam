@@ -16,7 +16,15 @@ Bluesky.
 - `SunsetCam.sh` — captures frames with `rpicam-still`, optionally deflickers, assembles
   an mp4 with `ffmpeg`, and posts to Bluesky.
 - `getBestShutter.sh` — empirical shutter calibration: walks shutter speeds in 2/3-stop
-  steps and picks the one with the most unique colors (per `imagemagick identify`).
+  steps, counting unique colors in the sky (top half) per `imagemagick identify`. It then
+  rejects candidates that blow more than `CLIP_MAX_BP` of the sky to white, and among those
+  within `TIE_BREAK_PCT` of the peak color count takes the **longest** shutter. See
+  *Exposure tuning dials* below.
+- `skyClip.py` — measures what fraction of the sky a frame blows to white, in basis points.
+  Supplies the clipping term `identify %k` lacks.
+- `nextShutter.py` — closed-loop exposure ramp. Meters each captured frame and picks the next
+  shutter so on-screen brightness declines at a target rate, instead of following a fixed
+  time curve.
 - `calc_brightness_pil_histogram.py` — PIL-based luminance check used by the
   auto-exposure feedback loop.
 - `editorialComment.sh` — pulls a few frames from the finished mp4 and asks the local
@@ -142,9 +150,29 @@ Flags (preserved from the original gphoto2 era for backward compatibility):
 | `-d` | run timelapse-deflicker after capture |
 | `-t` | post finished mp4 (now to Bluesky, formerly Twitter) |
 | `-c` | exposure compensation index 0..30 (1/3 EV per step, 15 = 0 EV) |
-| `-a` | ramp shutter exponentially from calibrated start to 0.5 s over the run |
+| `-a` | enable the closed-loop exposure ramp (`nextShutter.py`) |
 | `-b` | scp the frames to the archive host |
 | `-m` | post text |
+
+## Exposure tuning dials
+
+Sunset exposure is set in two stages: `getBestShutter.sh` picks the starting shutter before the
+run, then `nextShutter.py` adjusts it per frame during the run. Each dial is a constant at the
+top of its script, documented in place with the measurements behind its current value.
+
+| dial | script | default | effect |
+| --- | --- | --- | --- |
+| `CLIP_MAX_BP` | `getBestShutter.sh` | `2500` (25%) | max sky allowed to blow to white. **Raise, never lower** — the in-frame sun disc alone clips ~8.5%, and that floor rises as the sun migrates in toward the equinox. |
+| `TIE_BREAK_PCT` | `getBestShutter.sh` | `8` | how far below the peak color count a candidate may sit and still be eligible; the **longest** eligible shutter wins. Widen for a brighter run and longer dusk at the cost of more clipped sky; `0` reverts to plain peak-`%k`. |
+| `CLIP_LEVEL` | `getBestShutter.sh` | `250` | gamma-encoded luma at which a pixel counts as pure white. |
+| `RAMP_DECLINE_EV_MIN` | `SunsetCam.sh` | `0.18` | target on-screen decline rate (EV/min) the ramp aims at. Lower = brighter, longer dusk but more risk the scene stops visibly dimming. |
+| `RAMP_GATE_FRAC` | `SunsetCam.sh` | `0.40` | fraction of the run held flat at the calibrated baseline before the ramp may act, keeping the bright pre-sunset exposed as metered. |
+| `RAMP_MAX_SHUTTER` | `SunsetCam.sh` | `30000` | absolute ceiling (us). The one term that does not scale with the baseline, so it starts truncating the ramp for baselines above ~12000us. |
+| `RAMP_MAX_EV_PER_FRAME` | `SunsetCam.sh` | `0.02` | per-frame rate limit. With `-i 5` this caps lift at 0.24 EV/min, so the ramp can slow the fade but never arrest it. |
+
+Note the two stages interact only through the *level*, not the timing: the baseline cancels out
+of the ramp's trigger condition, so changing `TIE_BREAK_PCT` scales the whole exposure curve
+vertically without moving when the ramp starts (verified by replay on the 2026-08-10 run).
 
 ## Credits
 Inspiration from Laura Hughes and Karthik Gangavarapu. Most coding done by Andrew Su.
