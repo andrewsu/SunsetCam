@@ -154,25 +154,102 @@ Flags (preserved from the original gphoto2 era for backward compatibility):
 | `-b` | scp the frames to the archive host |
 | `-m` | post text |
 
-## Exposure tuning dials
+## Exposure controls
 
-Sunset exposure is set in two stages: `getBestShutter.sh` picks the starting shutter before the
-run, then `nextShutter.py` adjusts it per frame during the run. Each dial is a constant at the
-top of its script, documented in place with the measurements behind its current value.
+Exposure is set in **three sequential stages**, and only one physical variable ever changes:
+**shutter time**. Gain is pinned at `1.0` and never moves, so every dial below ultimately just
+scales or reshapes the shutter.
 
-| dial | script | default | effect |
-| --- | --- | --- | --- |
-| `CLIP_MAX_BP` | `getBestShutter.sh` | `2500` (25%) | max sky allowed to blow to white. **Raise, never lower** — the in-frame sun disc alone clips ~8.5%, and that floor rises as the sun migrates in toward the equinox. |
-| `TIE_BREAK_PCT` | `getBestShutter.sh` | `8` | how far below the peak color count a candidate may sit and still be eligible; the **longest** eligible shutter wins. Widen for a brighter run and longer dusk at the cost of more clipped sky; `0` reverts to plain peak-`%k`. |
-| `CLIP_LEVEL` | `getBestShutter.sh` | `250` | gamma-encoded luma at which a pixel counts as pure white. |
-| `RAMP_DECLINE_EV_MIN` | `SunsetCam.sh` | `0.18` | target on-screen decline rate (EV/min) the ramp aims at. Lower = brighter, longer dusk but more risk the scene stops visibly dimming. |
-| `RAMP_GATE_FRAC` | `SunsetCam.sh` | `0.40` | fraction of the run held flat at the calibrated baseline before the ramp may act, keeping the bright pre-sunset exposed as metered. |
-| `RAMP_MAX_SHUTTER` | `SunsetCam.sh` | `30000` | absolute ceiling (us). The one term that does not scale with the baseline, so it starts truncating the ramp for baselines above ~12000us. |
-| `RAMP_MAX_EV_PER_FRAME` | `SunsetCam.sh` | `0.02` | per-frame rate limit. With `-i 5` this caps lift at 0.24 EV/min, so the ramp can slow the fade but never arrest it. |
+```
+getBestShutter.sh            -c <n>                nextShutter.py
+   scan -> baseline    x  2^((c-15)/3)     ->    per-frame ramp
+      (LEVEL)               (LEVEL)                  (SHAPE)
+```
 
-Note the two stages interact only through the *level*, not the timing: the baseline cancels out
-of the ramp's trigger condition, so changing `TIE_BREAK_PCT` scales the whole exposure curve
-vertically without moving when the ramp starts (verified by replay on the 2026-08-10 run).
+The property that makes this tractable: **stages 1-2 set the absolute level, stage 3 sets only
+the shape of the fade, and the two are independent.** The baseline cancels out of the ramp's
+trigger condition, so changing calibration slides the whole exposure curve vertically without
+moving when the ramp starts (verified by replay on the 2026-08-10 and 08-11 runs).
+
+Each dial is a constant at the top of its script, documented in place with the measurements
+behind its current value.
+
+### Stage 1 — calibration, before the run (`getBestShutter.sh`, only when `-e 1`)
+
+Sweeps 22 candidates from 4,000,000us down to 250us in ~2/3-stop steps, metering the **top half
+only** (the sky), then selects in three passes: reject over-clipping candidates, find the peak
+unique-colour count among the survivors, then take the longest shutter within a window of that
+peak.
+
+| dial | default | effect |
+| --- | --- | --- |
+| `CLIP_MAX_BP` | `2500` (25%) | **Pass 1** — max fraction of sky allowed to blow to white. The in-frame sun disc alone clips ~8.5% and that floor rises toward the equinox, so raising this is usually safer than lowering it. Note the tie-break can push the pick toward this boundary when `%k` is flat, which makes it behave partly as an exposure target rather than a pure reject filter. |
+| `TIE_BREAK_PCT` | `8` | **Pass 3** — how far below the peak colour count a candidate may sit and still be eligible; the **longest** eligible shutter wins. Widen for a brighter run and longer dusk at the cost of more clipped sky; `0` reverts to plain peak-`%k`. |
+| `CLIP_LEVEL` | `250` | gamma-encoded luma at which a pixel counts as pure white. |
+| `DEFAULT_SHUTTER_US` | `10000` | used instead of a scan when `-e 0` (this is what the sunrise run does). |
+
+### Stage 2 — one-shot exposure compensation (`-c`, `SunsetCam.sh`)
+
+`shutter = baseline x 2^((c - 15) / 3)` — 1/3 EV per step, `0` = −5 EV, `15` = 0 EV, `30` = +5 EV.
+Applied *before* the ramp, so it scales the entire run. **Sunset currently runs `-c 15` (0 EV), so
+this knob is inert there**; it is a second, fully independent lever on the same quantity the
+Stage 1 dials control. Being a constant offset, it shifts every night equally — useful for a
+deliberate global change, not for condition-dependent problems.
+
+### Stage 3 — closed-loop ramp, during the run (`nextShutter.py`, only when `-a 1`)
+
+Holds the baseline flat through the pre-sunset, then aims on-screen sky brightness at a target
+that *declines* at a fixed rate, letting the measured sky pick each shutter:
+
+```
+target(t) = B0 * 2^(-DECLINE_EV_MIN * t)
+shutter   = clamp(target / measured_sky, baseline, MAX_SHUTTER)
+```
+
+The shutter is a **ratchet** (opens only) and rate-limited, which is what makes flicker
+structurally impossible.
+
+| dial | default | effect |
+| --- | --- | --- |
+| `RAMP_GATE_FRAC` | `0.40` | fraction of the run held flat at the calibrated baseline before any lift, keeping the bright pre-sunset exposed as metered. |
+| `RAMP_DECLINE_EV_MIN` | `0.18` | target on-screen decline rate (EV/min). **The main shape dial** — lower gives a brighter, longer dusk but more risk the scene stops visibly dimming. |
+| `RAMP_MAX_SHUTTER` | `30000` | absolute ceiling (us). The one term that does *not* scale with the baseline, so it starts truncating the ramp for baselines above ~12,000us. |
+| `RAMP_MAX_EV_PER_FRAME` | `0.02` | per-frame rate limit. With `-i 5` this caps lift at 0.24 EV/min, so the ramp can slow the fade but never arrest it. |
+| `RAMP_SMOOTH_FRAMES` | `5` | frames of causal smoothing on the sky measurement, so moving cloud doesn't drive the loop. |
+
+### Fixed capture settings
+
+These affect brightness and look but are not tuned per run.
+
+| setting | value | note |
+| --- | --- | --- |
+| `--gain` | `1.0` | pinned at base ISO — **shutter is the only exposure variable** |
+| `AWB_GAINS` | `2.34,1.67` | locked white balance; preserves warm sunset tones |
+| `DENOISE` | `cdn_hq` | helps the noisy dusk frames |
+| `SETTLE_MS` | `1000` | focus-settle time; shorter values produced soft frames |
+| `JPEG_QUALITY` | `100` | avoid stacking JPEG artifacts before the h264 encode |
+
+### Live configuration
+
+| | sunset | sunrise |
+| --- | --- | --- |
+| calibration | `-e 1` (full scan) | `-e 0` (fixed `DEFAULT_SHUTTER_US`) |
+| ramp | `-a 1` (closed loop) | `-a 0` (flat) |
+| compensation | `-c 15` (0 EV) | `-c 13` (−2/3 EV) |
+| frames / interval | `-n 600 -i 5` (~50 min) | `-n 240 -i 10` |
+| leveling | `-l 5` | `-l 5` |
+
+The sunrise run therefore uses **none** of the Stage 1 or Stage 3 machinery — those dials only
+affect sunset.
+
+### Which dial for which symptom
+
+| symptom | dial |
+| --- | --- |
+| sky blown out / too bright | `CLIP_MAX_BP` |
+| whole run too dark | `TIE_BREAK_PCT` (condition-dependent) or `-c` (unconditional) |
+| dusk fades to black too early | `RAMP_DECLINE_EV_MIN` |
+| exposure lifts during the pre-sunset | `RAMP_GATE_FRAC` |
 
 ## Credits
 Inspiration from Laura Hughes and Karthik Gangavarapu. Most coding done by Andrew Su.
