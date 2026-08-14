@@ -187,6 +187,12 @@ peak.
 | `TIE_BREAK_PCT` | `8` | **Pass 3** — how far below the peak colour count a candidate may sit and still be eligible; the **longest** eligible shutter wins. Widen for a brighter run and longer dusk at the cost of more clipped sky; `0` reverts to plain peak-`%k`. |
 | `CLIP_LEVEL` | `250` | gamma-encoded luma at which a pixel counts as pure white. |
 | `DEFAULT_SHUTTER_US` | `10000` | used instead of a scan when `-e 0` (this is what the sunrise run does). |
+| `CLIP_SOFT_BP` | `1000` | **shadow mode only — does not affect the pick.** Soft clipping target for a candidate replacement rule (take the longest shutter clipping under this, with `%k` demoted to a sanity net), logged beside the live pick so the two can be compared over real nights before switching. |
+| `TIE_BREAK_WIDE_PCT` | `25` | **shadow mode only.** The more permissive `%k` window applied to low-clipping candidates under the shadow rule. |
+
+Shadow mode writes one extra log line per run — `shadow: AGREE at ...` or `shadow: DIVERGE --
+would pick ...` — so divergences are greppable. Expect agreement on most nights; the cases that
+differ are heavy cloud decks and clear nights with a broad flat `%k` plateau.
 
 ### Stage 2 — one-shot exposure compensation (`-c`, `SunsetCam.sh`)
 
