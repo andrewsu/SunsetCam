@@ -32,6 +32,14 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 source "$CONFIG_FILE"
 
+# Camera mount orientation in degrees, passed to rpicam-still --rotation (0 or 180 only).
+# The sensor is physically mounted upside down at this site, so each frame is flipped in the
+# ISP -- unlike the -l leveling rotation this costs no crop and no image quality. It MUST
+# match the value getBestShutter.sh uses: the exposure metering crops the TOP HALF of the
+# frame as "sky" (see getBestShutter.sh, skyClip.py, nextShutter.py), so an unrotated capture
+# would meter the ground and drive the whole exposure system off the wrong signal.
+CAMERA_ROTATION="${CAMERA_ROTATION:-0}"
+
 # Initialize parameters
 num=480
 interval=5
@@ -184,7 +192,7 @@ STARTTIME=`date "+%F %T"`
 for i in `seq 1 $num`; do
     filename="$ROOT/img/$today/`date +%Y%m%d%H%M%S`.jpg"
     echo "Capturing photo $i / $num at shutter=${shutter}us -> $filename" >> $LOG_FILE
-    rpicam-still -n -t $SETTLE_MS --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awbgains $AWB_GAINS --denoise $DENOISE --autofocus-mode manual --lens-position 0 -q $JPEG_QUALITY -o "$filename" >> $LOG_FILE 2>&1 &
+    rpicam-still -n -t $SETTLE_MS --rotation $CAMERA_ROTATION --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awbgains $AWB_GAINS --denoise $DENOISE --autofocus-mode manual --lens-position 0 -q $JPEG_QUALITY -o "$filename" >> $LOG_FILE 2>&1 &
     CAMERA_PID=$!
     wait $CAMERA_PID
     CAMERA_PID=""

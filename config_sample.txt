@@ -7,3 +7,7 @@ ROOT="/home/pi/SunsetCam"
 # per-run directory exists). SunsetCam.sh and the scripts it calls always write
 # to a per-run log at $ROOT/img/<date>[_n]/log instead.
 LOG_FILE="/home/pi/SunsetCam/log"
+
+# camera mount orientation in degrees: 0 for an upright module, 180 if the sensor is mounted
+# upside down. Passed straight to rpicam-still --rotation, which accepts only 0 or 180.
+CAMERA_ROTATION=0

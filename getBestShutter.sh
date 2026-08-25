@@ -34,6 +34,10 @@ fi
 source "$CONFIG_FILE"
 [ -n "$PARENT_LOG_FILE" ] && LOG_FILE=$PARENT_LOG_FILE
 
+# Camera mount orientation (see SunsetCam.sh). Must match the capture rotation, otherwise
+# calibration meters a differently-oriented frame than the run actually captures.
+CAMERA_ROTATION="${CAMERA_ROTATION:-0}"
+
 mkdir -p $ROOT/tmp
 
 echo "running getBestShutter.sh" >> $LOG_FILE
@@ -127,7 +131,7 @@ min_shutter=250   # 1/4000 s (bright daylight)
 # broke at the first drop in colour count, which false-triggered at the 4s maximum when the
 # longest shutters were all blown white -- near-white frames have few, noisy colour counts.)
 while [ $shutter -ge $min_shutter ]; do
-    rpicam-still -n -t 100 --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o $ROOT/tmp/test.jpg >> $LOG_FILE 2>&1 &
+    rpicam-still -n -t 100 --rotation $CAMERA_ROTATION --width 1920 --height 1080 --shutter $shutter --gain 1.0 --awb daylight --autofocus-mode manual --lens-position 0 -o $ROOT/tmp/test.jpg >> $LOG_FILE 2>&1 &
     CAMERA_PID=$!
     wait $CAMERA_PID
     CAMERA_PID=""
