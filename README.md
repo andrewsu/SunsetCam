@@ -218,9 +218,9 @@ structurally impossible.
 | dial | default | effect |
 | --- | --- | --- |
 | `RAMP_GATE_FRAC` | `0.40` | fraction of the run held flat at the calibrated baseline before any lift, keeping the bright pre-sunset exposed as metered. |
-| `RAMP_DECLINE_EV_MIN` | `0.18` | target on-screen decline rate (EV/min). **The main shape dial** — lower gives a brighter, longer dusk but more risk the scene stops visibly dimming. |
-| `RAMP_MAX_SHUTTER` | `30000` | absolute ceiling (us). The one term that does *not* scale with the baseline, so it starts truncating the ramp for baselines above ~12,000us. |
-| `RAMP_MAX_EV_PER_FRAME` | `0.02` | per-frame rate limit. With `-i 5` this caps lift at 0.24 EV/min, so the ramp can slow the fade but never arrest it. |
+| `RAMP_DECLINE_EV_MIN` | `0.10` | target on-screen decline rate (EV/min). **The main shape dial** — lower gives a brighter, longer dusk but more risk the scene stops visibly dimming. Note this is a rate from *run start*, so it multiplies out over the run: 0.18 permitted a 9-stop fall across 50 min and left the ramp inert (see SunsetCam.sh). |
+| `RAMP_MAX_SHUTTER` | `120000` | absolute ceiling (us). The one term that does *not* scale with the baseline. Measured 2026-08-25: not the binding constraint -- raising it alone changes nothing while the decline target gates the lift. |
+| `RAMP_MAX_EV_PER_FRAME` | `0.04` | per-frame rate limit. With `-i 5` this caps lift at 0.48 EV/min. It must stay above the decline target or the rate limit, not the target, becomes what gates the ramp. |
 | `RAMP_SMOOTH_FRAMES` | `5` | frames of causal smoothing on the sky measurement, so moving cloud doesn't drive the loop. |
 
 ### Fixed capture settings
@@ -243,7 +243,7 @@ These affect brightness and look but are not tuned per run.
 | ramp | `-a 1` (closed loop) | `-a 0` (flat) |
 | compensation | `-c 15` (0 EV) | `-c 13` (−2/3 EV) |
 | frames / interval | `-n 600 -i 5` (~50 min) | `-n 240 -i 10` |
-| leveling | `-l 5` | `-l 5` |
+| leveling | `-l 0` | `-l 0` |
 
 The sunrise run therefore uses **none** of the Stage 1 or Stage 3 machinery — those dials only
 affect sunset.

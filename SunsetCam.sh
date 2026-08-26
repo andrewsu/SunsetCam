@@ -67,10 +67,23 @@ level=0
 #   RAMP_MAX_SHUTTER      = hard ceiling (us) on the ramp
 #   RAMP_MAX_EV_PER_FRAME = largest single step, so no one measurement can show as a jump
 #   RAMP_SMOOTH_FRAMES    = frames of causal smoothing on the sky measurement
+#
+# Retuned 2026-08-25. At the shipped 0.18 EV/min the target permits a 9-stop on-screen decline
+# across a 50-minute run, so the ramp did not lift until the scene was already ~8 stops down:
+# on 2026-08-19 it never moved at all (sky fell 9.11 stops, 99.6% of the final frame near-black)
+# and on 2026-08-25 it first moved at frame 523 of 600 and lifted only 1.13 of the 11.66 stops
+# lost. The repeated "worst rebound +0.00 stops" readings were the loop being inert, not stable.
+# Now 0.10/120000/0.04, verified by replaying the 2026-08-25 frames through this very
+# script: first lift lands on the gate (frame 239/600), the shutter climbs monotonically
+# 1677 -> 60389us, and the sky fades 0.468 -> 0.0162, i.e. 4.85 stops across the run against the
+# 5.0 the target asks for. The tail ends +4.0 stops brighter than as-run; frames before the gate
+# are untouched, so the metered pre-sunset is preserved. GATE_FRAC and the ceiling are NOT the
+# binding constraints -- raising the ceiling alone changes nothing; the decline target gates the
+# lift, and MAX_EV_PER_FRAME only needs to stay above it.
 RAMP_GATE_FRAC=0.40
-RAMP_DECLINE_EV_MIN=0.18
-RAMP_MAX_SHUTTER=30000
-RAMP_MAX_EV_PER_FRAME=0.02
+RAMP_DECLINE_EV_MIN=0.10
+RAMP_MAX_SHUTTER=120000
+RAMP_MAX_EV_PER_FRAME=0.04
 RAMP_SMOOTH_FRAMES=5
 
 # Default shutter (in microseconds) used when -e 0 (no calibration). 1/100s is a reasonable
