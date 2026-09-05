@@ -80,7 +80,12 @@ level=0
 # are untouched, so the metered pre-sunset is preserved. GATE_FRAC and the ceiling are NOT the
 # binding constraints -- raising the ceiling alone changes nothing; the decline target gates the
 # lift, and MAX_EV_PER_FRAME only needs to stay above it.
-RAMP_GATE_FRAC=0.40
+# GATE_FRAC is a fraction of the RUN, so lengthening the run silently delays the ramp. The
+# 2026-09-04 change to -n 780 would have slid the gate from sunset-9.6 to about sunset-4.6 and
+# changed the sunset look, so it is re-derived here to land on the same frame as before:
+#   gate_frame = int(GATE_FRAC * (n-1)) + 1 = 240  ->  GATE_FRAC in [0.3068, 0.3081) at n=780
+# i.e. still 19.9 min after a start at sunset-30. RE-DERIVE THIS IF -n CHANGES AGAIN.
+RAMP_GATE_FRAC=0.3075
 RAMP_DECLINE_EV_MIN=0.10
 RAMP_MAX_SHUTTER=120000
 RAMP_MAX_EV_PER_FRAME=0.04

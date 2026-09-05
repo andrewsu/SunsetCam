@@ -53,7 +53,6 @@ peakShutter=""
 allowedShutters=()
 allowedColors=()
 allowedClipKnown=()
-allowedClip=()
 
 # Highlight cap. `identify %k` counts tonal variety but has no notion of clipping, and on a
 # low-contrast marine-layer sky the criterion inverts: shortening the exposure quantises the
@@ -91,32 +90,6 @@ CLIP_LEVEL=250     # gamma-encoded luma at which a pixel reads as pure white
 # relative window it does nothing when the peak is genuinely sharp -- on a hazy night where %k
 # goes flat and degenerate, the cap remains the real constraint.
 TIE_BREAK_PCT=8    # % below the peak colour count still eligible; the longest of those wins
-
-# --- SHADOW MODE: evaluated and logged, but never acted on -----------------------------------
-# A candidate replacement for the rule above, being measured before it is trusted. Across the
-# nights with evidence, the shutter that looked right was always the LONGEST one clipping under
-# ~10%, while the %k peak sat at 0-2% clipped, i.e. 1-2 stops too dark. That suggests clipping
-# should choose and %k should only be a sanity net:
-#
-#   primary : among candidates clipping <= CLIP_SOFT_BP, take the longest whose %k is within
-#             TIE_BREAK_WIDE_PCT of the peak;
-#   fallback: if none qualify, the live rule above (which is what keeps this safe as the sun
-#             migrates into frame and the irreducible clipping floor rises past the soft target).
-#
-# Unlike a hard "clip <= X" ceiling, the soft target does not REJECT brighter candidates -- it
-# only declines to promote them, so a genuinely good 8.5%-clipping night is still reachable via
-# the fallback. That is what killed the plain ceiling idea (it would have rejected 2026-08-07's
-# good 8.48% pick and gone darker).
-#
-# Retrodicted correctly on all six nights with evidence (2026-08-07/09/10/11/12/13), vs 3 of 6
-# for the live rule. But 08-13 -- the best run so far -- was a NEAR MISS: its next candidate up
-# clipped 1107bp against this 1000bp target, so a soft target of 1200 (inside the 800-1500 band
-# an earlier 3-night sample suggested) would have shot that night 2/3 stop hotter at 11% clipping.
-# Hence shadow mode rather than a switch: the sensitivity analysis was thin, so log the divergence
-# on real nights until the dial is trusted. Expect agreement on most nights; the cases that matter
-# are heavy cloud decks (08-12) and clear nights with a broad flat %k plateau (08-07).
-CLIP_SOFT_BP=1000        # soft clipping target, bp -- candidates at/below this may be promoted
-TIE_BREAK_WIDE_PCT=25    # the more permissive %k window applied to those low-clipping candidates
 
 # Least-blown candidate seen, used only if NOTHING clears the cap (a very bright, very flat sky).
 fallbackShutter=""
@@ -165,9 +138,9 @@ while [ $shutter -ge $min_shutter ]; do
         allowedShutters+=("$shutter")
         allowedColors+=("$numColors")
         if [ -n "$clipBp" ]; then
-            allowedClipKnown+=(1); allowedClip+=("$clipBp")
+            allowedClipKnown+=(1)
         else
-            allowedClipKnown+=(0); allowedClip+=(0)
+            allowedClipKnown+=(0)
         fi
         if (( numColors > bestNumColors )); then
             bestNumColors=$numColors
@@ -208,29 +181,6 @@ else
         echo "best shutter: ${bestShutter}us ($chosenColors unique colors) -- longest within ${TIE_BREAK_PCT}% of the ${bestNumColors}-colour peak at ${peakShutter}us" >> $LOG_FILE
     else
         echo "best shutter: ${bestShutter}us ($bestNumColors unique colors)" >> $LOG_FILE
-    fi
-
-    # Shadow evaluation (see CLIP_SOFT_BP above). Reports what the candidate rule WOULD have
-    # picked. Deliberately runs after $bestShutter is final and only writes to the log, so it
-    # cannot influence this run; comparing the two lines over a few weeks is the whole point.
-    shadowShutter=""
-    wideThreshold=$(( bestNumColors * (100 - TIE_BREAK_WIDE_PCT) / 100 ))
-    for i in "${!allowedShutters[@]}"; do          # scan order is longest -> shortest
-        if (( allowedClipKnown[i] == 1 && allowedClip[i] <= CLIP_SOFT_BP \
-              && allowedColors[i] >= wideThreshold && allowedColors[i] > 0 )); then
-            shadowShutter=${allowedShutters[i]}
-            shadowClip=${allowedClip[i]}
-            shadowColors=${allowedColors[i]}
-            break
-        fi
-    done
-    if [ -z "$shadowShutter" ]; then
-        echo "shadow: no candidate under the ${CLIP_SOFT_BP}bp soft target; rule falls back to the live pick (${bestShutter}us)" >> $LOG_FILE
-    elif [ "$shadowShutter" = "$bestShutter" ]; then
-        echo "shadow: AGREE at ${bestShutter}us (${shadowClip}bp clip <= ${CLIP_SOFT_BP}bp soft target)" >> $LOG_FILE
-    else
-        shadowEv=$(python3 -c "import math; print('%+.2f' % math.log2($shadowShutter/$bestShutter))" 2>/dev/null || echo "?")
-        echo "shadow: DIVERGE -- would pick ${shadowShutter}us (${shadowColors} colors, ${shadowClip}bp clip) vs live ${bestShutter}us = ${shadowEv} stops" >> $LOG_FILE
     fi
 fi
 echo $bestShutter > $ROOT/tmp/shutter
