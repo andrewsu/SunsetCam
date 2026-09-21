@@ -32,19 +32,12 @@ echo "bash $ROOT/SunsetCam.sh -n 780 -i 5 -a 1 -e 1 -d 0 -t 1 -c 15 -l 0 -m 'Sun
 
 
 ### GET SUNRISE TIME
-
-# Option #1: use R
-sunrise=`Rscript $ROOT/getSunTime.r sunrise`
-echo "sunrise: $sunrise" >> $LOG_FILE
-
-### the above commands should be used to tun this script at a certain time using 'at'
-
-executionTime=`date -d "$sunrise -20 min" +"%Y%m%d%H%M"`
-echo "`date`: Logging command to execute at: $executionTime" >> $LOG_FILE
-
-
-### schedule photo capture
-
-#echo "echo '`date`: Executing photo capture' >> /home/pi/SunsetCam/log" | at -t $executionTime
-echo "bash $ROOT/SunsetCam.sh -a 0 -i 10 -n 240 -c 13 -e 0 -d 0 -t 0 -l 0 -m 'A #sunrise timelapse from Scripps Research' >> $LOG_FILE" | at -t $executionTime
-
+#
+# Disabled 2026-09-21: we never do anything with the sunrise videos, so there is no
+# point spending the capture, the disk, or the 240 frames on them. To re-enable,
+# uncomment the four lines below.
+#
+#sunrise=`Rscript $ROOT/getSunTime.r sunrise`
+#echo "sunrise: $sunrise" >> $LOG_FILE
+#executionTime=`date -d "$sunrise -20 min" +"%Y%m%d%H%M"`
+#echo "bash $ROOT/SunsetCam.sh -a 0 -i 10 -n 240 -c 13 -e 0 -d 0 -t 0 -l 0 -m 'A #sunrise timelapse from Scripps Research' >> $LOG_FILE" | at -t $executionTime

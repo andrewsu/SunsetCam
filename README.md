@@ -11,8 +11,10 @@ Bluesky.
 
 ## Architecture
 
-- `scheduler.sh` — daily cron entrypoint. Uses R + `suncalc` to compute today's sunrise
-  and sunset times and queues two `SunsetCam.sh` runs via `at`.
+- `scheduler.sh` — daily cron entrypoint. Uses R + `suncalc` to compute today's sunset
+  time and queues a `SunsetCam.sh` run via `at`. It used to queue a sunrise run too;
+  that is commented out as of 2026-09-21 since nothing was ever done with the sunrise
+  videos — uncomment the sunrise block to bring it back.
 - `SunsetCam.sh` — captures frames with `rpicam-still`, optionally deflickers, assembles
   an mp4 with `ffmpeg`, and posts to Bluesky.
 - `getBestShutter.sh` — empirical shutter calibration: walks shutter speeds in 2/3-stop
@@ -231,7 +233,7 @@ These affect brightness and look but are not tuned per run.
 
 ### Live configuration
 
-| | sunset | sunrise |
+| | sunset | sunrise (disabled) |
 | --- | --- | --- |
 | calibration | `-e 1` (full scan) | `-e 0` (fixed `DEFAULT_SHUTTER_US`) |
 | ramp | `-a 1` (closed loop) | `-a 0` (flat) |
@@ -239,8 +241,9 @@ These affect brightness and look but are not tuned per run.
 | frames / interval | `-n 780 -i 5` (~65 min, sunset−30 → +35) | `-n 240 -i 10` |
 | leveling | `-l 0` | `-l 0` |
 
-The sunrise run therefore uses **none** of the Stage 1 or Stage 3 machinery — those dials only
-affect sunset.
+The sunrise run is no longer scheduled (see `scheduler.sh`); its column is kept because the
+flags still work if you re-enable it. It uses **none** of the Stage 1 or Stage 3 machinery —
+those dials only affect sunset.
 
 ### Which dial for which symptom
 
