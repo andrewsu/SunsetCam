@@ -22,8 +22,15 @@ Two properties make this safe on hardware:
     a visible jump. Together these make flicker structurally impossible.
 
 Where the light falls faster than the target rate the shutter simply stays put and the scene dims
-naturally; it only opens where the light stalls (the sunset plateau). So the on-screen brightness
-declines at >= DECLINE_EV_PER_MIN everywhere and can never brighten. GATE_FRAC holds it at the
+naturally; it only opens where the light stalls (the sunset plateau).
+
+CAVEAT, measured 2026-09-21: the on-screen brightness does NOT always decline at
+>= DECLINE_EV_PER_MIN, and it CAN brighten. b0 is captured on frame 1 but GATE_FRAC blocks any
+lift until much later, so on a night whose pre-gate light falls faster than DECLINE_EV_PER_MIN the
+scene is already below target when the gate opens and the ramp lifts -- rate-limited, but upward --
+to reach it. Across Sep 4-18 that showed as a mean +0.78 stop mid-video brightening, worst +2.65.
+The ratchet also cannot prevent brightening caused by the *sky* brightening; only the shutter is
+ratcheted. GATE_FRAC holds it at the
 metered baseline for the first part of the run, keeping the bright pre-sunset sky exposed as
 metered rather than lifted.
 

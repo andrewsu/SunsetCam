@@ -56,7 +56,8 @@ level=0
 # aim the on-screen sky brightness at a target that DECLINES at RAMP_DECLINE_EV_MIN, letting the
 # measured sky set the shutter each frame (see nextShutter.py). The shutter is a rate-limited
 # ratchet, so it can only open, and only where the light happens to be falling slower than the
-# target -- the scene therefore dims at >= RAMP_DECLINE_EV_MIN throughout and can never brighten.
+# target. (That was meant to make the scene dim at >= RAMP_DECLINE_EV_MIN throughout and never
+# brighten. It does not -- see the 2026-09-21 measurement below.)
 #
 # This replaces a fixed-time-curve ramp, whose net effect was (natural light fall) - (lift) with the
 # two terms uncorrelated: the fall across the ramp window measured 0.8-2.8 stops over four nights
@@ -77,9 +78,16 @@ level=0
 # script: first lift lands on the gate (frame 239/600), the shutter climbs monotonically
 # 1677 -> 60389us, and the sky fades 0.468 -> 0.0162, i.e. 4.85 stops across the run against the
 # 5.0 the target asks for. The tail ends +4.0 stops brighter than as-run; frames before the gate
-# are untouched, so the metered pre-sunset is preserved. GATE_FRAC and the ceiling are NOT the
-# binding constraints -- raising the ceiling alone changes nothing; the decline target gates the
-# lift, and MAX_EV_PER_FRAME only needs to stay above it.
+# are untouched, so the metered pre-sunset is preserved.
+#
+# THAT "GATE_FRAC and the ceiling are NOT the binding constraints" READING IS STALE -- it was
+# taken on the old -n 600 runs. Re-measured 2026-09-21 across Sep 4-18 (all 15 nights at -n 780):
+# both now bind. The ramp lifts on the first frame the gate allows on 13/15 nights, and reaches
+# MAX_SHUTTER on 15/15. The consequence is a real defect: because b0 is anchored on frame 1 while
+# the gate blocks any lift until frame 240, a night whose pre-gate light falls faster than
+# DECLINE_EV_MIN arrives at the gate below target, and the ramp then sprints at MAX_EV_PER_FRAME
+# to catch up -- the picture BRIGHTENS ~10-12s into the video. Measured mean +0.78 stops, worst
+# +2.65 (2026-09-18). See the README for the measured GATE_FRAC trade-off table.
 # GATE_FRAC is a fraction of the RUN, so lengthening the run silently delays the ramp. The
 # 2026-09-04 change to -n 780 would have slid the gate from sunset-9.6 to about sunset-4.6 and
 # changed the sunset look, so it is re-derived here to land on the same frame as before:

@@ -211,11 +211,38 @@ shutter   = clamp(target / measured_sky, baseline, MAX_SHUTTER)
 The shutter is a **ratchet** (opens only) and rate-limited, which is what makes flicker
 structurally impossible.
 
+**Known defect: the ramp can brighten the picture mid-video.** The docstring claim that
+on-screen brightness "can never brighten" does not hold. `B0` is captured on **frame 1**
+and the target decays from there at `RAMP_DECLINE_EV_MIN`, but the gate blocks any lift
+until frame 240. The measured natural fall over that gated stretch is 0.06-0.27 EV/min,
+so on a fast-falling night the scene is up to 3.4 stops *below* target by the time the
+gate opens; the ramp then lifts at its 0.48 EV/min rate limit to catch up, and the viewer
+sees the picture brighten ~10-12s into a 31.2s video (sunset is at 14.4s). Measured over
+Sep 4-18: mean worst-case rebound +0.78 stops, and +2.65 on 2026-09-18. Verified rather
+than inferred -- at every rebound peak the measured sky level matches the target curve to
+within 1-5%.
+
+Lowering `RAMP_GATE_FRAC` shrinks the deficit and so shrinks the rebound, at the cost of
+protecting less of the metered pre-sunset. Simulated on all 15 nights, with sunset
+brightness, near-black tail and ceiling behaviour unchanged throughout:
+
+| `RAMP_GATE_FRAC` | gate frame | pre-sunset held | rebound mean | rebound worst |
+| --- | --- | --- | --- | --- |
+| `0.3075` (current) | 240 | sunset−30 → −10 | +0.78 | +2.65 |
+| `0.231` | 180 | → −15 | +0.45 | +1.88 |
+| `0.1926` | 150 | → −17.5 | +0.34 | +1.11 |
+| `0.154` | 120 | → −20 | +0.27 | +0.84 |
+
+Two fixes were measured and **rejected**: re-anchoring `B0` at the gate zeroes the rebound
+but underexposes the sunset by up to 3 stops on exactly the worst nights, and a monotone
+no-brighten clamp is strictly worse than shrinking the gate. Note the ratchet cannot
+prevent brightening caused by the *sky* brightening -- only the shutter is ratcheted.
+
 | dial | default | effect |
 | --- | --- | --- |
-| `RAMP_GATE_FRAC` | `0.3075` | fraction of the run held flat at the calibrated baseline before any lift, keeping the bright pre-sunset exposed as metered. Currently lands on frame 240 = 19.9 min in = ~sunset−9.6. **It is a fraction of the run, so changing `-n` moves the gate in absolute time — re-derive it if the run length changes.** |
+| `RAMP_GATE_FRAC` | `0.3075` | fraction of the run held flat at the calibrated baseline before any lift, keeping the bright pre-sunset exposed as metered. Currently lands on frame 240 = 19.9 min in = ~sunset−9.6. **It is a fraction of the run, so changing `-n` moves the gate in absolute time — re-derive it if the run length changes.** Measured 2026-09-21 over Sep 4–18: this **is** now the binding constraint — the ramp lifts on the first frame it is allowed to on 13 of 15 nights, and the deficit accumulated while gated is what the ramp then sprints to close (see the rebound note below). |
 | `RAMP_DECLINE_EV_MIN` | `0.10` | target on-screen decline rate (EV/min). **The main shape dial** — lower gives a brighter, longer dusk but more risk the scene stops visibly dimming. Note this is a rate from *run start*, so it multiplies out over the run: 0.18 permitted a 9-stop fall across 50 min and left the ramp inert (see SunsetCam.sh). |
-| `RAMP_MAX_SHUTTER` | `120000` | absolute ceiling (us). The one term that does *not* scale with the baseline. Measured 2026-08-25: not the binding constraint -- raising it alone changes nothing while the decline target gates the lift. |
+| `RAMP_MAX_SHUTTER` | `120000` | absolute ceiling (us). The one term that does *not* scale with the baseline. ~~Measured 2026-08-25: not the binding constraint.~~ **That reading is stale** — it was taken on the old `-n 600` runs. Since `-n 780` went in the ramp reaches this ceiling on **15 of 15** nights (Sep 4–18), typically around frame 650 (~26s into the 31.2s video), after which the dusk fades naturally. Raising it to 250000 only drops that to 13/15 and changes nothing else measurable, so it binds but does no harm. |
 | `RAMP_MAX_EV_PER_FRAME` | `0.04` | per-frame rate limit. With `-i 5` this caps lift at 0.48 EV/min. It must stay above the decline target or the rate limit, not the target, becomes what gates the ramp. |
 | `RAMP_SMOOTH_FRAMES` | `5` | frames of causal smoothing on the sky measurement, so moving cloud doesn't drive the loop. |
 
