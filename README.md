@@ -228,10 +228,20 @@ brightness, near-black tail and ceiling behaviour unchanged throughout:
 
 | `RAMP_GATE_FRAC` | gate frame | pre-sunset held | rebound mean | rebound worst |
 | --- | --- | --- | --- | --- |
-| `0.3075` (current) | 240 | sunset−30 → −10 | +0.78 | +2.65 |
+| `0.3075` (until 2026-09-23) | 240 | sunset−30 → −10 | +0.78 | +2.65 |
 | `0.231` | 180 | → −15 | +0.45 | +1.88 |
-| `0.1926` | 150 | → −17.5 | +0.34 | +1.11 |
+| **`0.1926` (current)** | **150** | **→ −17.5** | **+0.34** | **+1.11** |
 | `0.154` | 120 | → −20 | +0.27 | +0.84 |
+
+`0.1926` was adopted on 2026-09-23 as the smallest move buying most of the win: it cuts the
+nights carrying a visible (>0.5 stop) episode from 6/15 to 3/15, and the episodes that remain move
+earlier (from 9.6-12.4s to 6-9s) as well as shrinking. It is not free — it keeps 12.5 rather than
+20 minutes of pre-sunset at the metered baseline. Clipping was checked and is **not** a concern
+despite the ramp having no clipping guard: replaying each night's actual per-frame lift puts 0 of
+15 nights over the 2500 bp budget, because the ramp only lifts once the sky has already fallen
+faster than target and so has nothing left to clip. Note also that some residual brightening is
+the *sky* brightening rather than the ramp (2026-09-12 shows +0.43 stops with a flat shutter at
+every gate), which no exposure rule can remove.
 
 Two fixes were measured and **rejected**: re-anchoring `B0` at the gate zeroes the rebound
 but underexposes the sunset by up to 3 stops on exactly the worst nights, and a monotone
@@ -240,7 +250,7 @@ prevent brightening caused by the *sky* brightening -- only the shutter is ratch
 
 | dial | default | effect |
 | --- | --- | --- |
-| `RAMP_GATE_FRAC` | `0.3075` | fraction of the run held flat at the calibrated baseline before any lift, keeping the bright pre-sunset exposed as metered. Currently lands on frame 240 = 19.9 min in = ~sunset−9.6. **It is a fraction of the run, so changing `-n` moves the gate in absolute time — re-derive it if the run length changes.** Measured 2026-09-21 over Sep 4–18: this **is** now the binding constraint — the ramp lifts on the first frame it is allowed to on 13 of 15 nights, and the deficit accumulated while gated is what the ramp then sprints to close (see the rebound note below). |
+| `RAMP_GATE_FRAC` | `0.1926` | fraction of the run held flat at the calibrated baseline before any lift, keeping the bright pre-sunset exposed as metered. Lands on frame 150 = 12.5 min in = ~sunset−17.5. **It is a fraction of the run, so changing `-n` moves the gate in absolute time — re-derive it if the run length changes** (`nextShutter.py` lifts from `int(GATE_FRAC * (n-1))`). Measured 2026-09-21 over Sep 4–18: this **is** the binding constraint — the ramp lifts on the first frame it is allowed to on 13 of 15 nights, and the deficit accumulated while gated is what it then sprints to close. Lowered from `0.3075` (frame 240) on 2026-09-23 to shrink that rebound; see the table below. |
 | `RAMP_DECLINE_EV_MIN` | `0.10` | target on-screen decline rate (EV/min). **The main shape dial** — lower gives a brighter, longer dusk but more risk the scene stops visibly dimming. Note this is a rate from *run start*, so it multiplies out over the run: 0.18 permitted a 9-stop fall across 50 min and left the ramp inert (see SunsetCam.sh). |
 | `RAMP_MAX_SHUTTER` | `120000` | absolute ceiling (us). The one term that does *not* scale with the baseline. ~~Measured 2026-08-25: not the binding constraint.~~ **That reading is stale** — it was taken on the old `-n 600` runs. Since `-n 780` went in the ramp reaches this ceiling on **15 of 15** nights (Sep 4–18), typically around frame 650 (~26s into the 31.2s video), after which the dusk fades naturally. Raising it to 250000 only drops that to 13/15 and changes nothing else measurable, so it binds but does no harm. |
 | `RAMP_MAX_EV_PER_FRAME` | `0.04` | per-frame rate limit. With `-i 5` this caps lift at 0.48 EV/min. It must stay above the decline target or the rate limit, not the target, becomes what gates the ramp. |

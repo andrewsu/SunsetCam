@@ -89,11 +89,28 @@ level=0
 # to catch up -- the picture BRIGHTENS ~10-12s into the video. Measured mean +0.78 stops, worst
 # +2.65 (2026-09-18). See the README for the measured GATE_FRAC trade-off table.
 # GATE_FRAC is a fraction of the RUN, so lengthening the run silently delays the ramp. The
-# 2026-09-04 change to -n 780 would have slid the gate from sunset-9.6 to about sunset-4.6 and
-# changed the sunset look, so it is re-derived here to land on the same frame as before:
-#   gate_frame = int(GATE_FRAC * (n-1)) + 1 = 240  ->  GATE_FRAC in [0.3068, 0.3081) at n=780
-# i.e. still 19.9 min after a start at sunset-30. RE-DERIVE THIS IF -n CHANGES AGAIN.
-RAMP_GATE_FRAC=0.3075
+# 2026-09-04 change to -n 780 would have slid the gate from sunset-9.6 to about sunset-4.6, so it
+# was re-derived to hold frame 240 (GATE_FRAC 0.3075). RE-DERIVE THIS IF -n CHANGES AGAIN:
+#   nextShutter.py lifts from  int(GATE_FRAC * (n-1))  and SunsetCam.sh logs that frame + 1.
+#
+# Moved 2026-09-23 to shrink the rebound above: 0.3075 -> 0.1926, i.e. the lift threshold goes
+# from frame 239 (19.9 min in, sunset-10.1) to frame 150 (12.5 min in, sunset-17.5). Any value in
+# [0.19256, 0.19383] lands on 150 at n=780. Chosen off the measured trade-off table in the README
+# as the smallest move that buys most of the win: across Sep 4-18 it takes the mean worst-case
+# brightening 0.78 -> 0.34 stops and the worst night 2.65 -> 1.11, cuts nights with a visible
+# (>0.5 st) episode from 6/15 to 3/15, and leaves near-black tail, ceiling behaviour and on-screen
+# brightness at sunset unchanged. It is NOT free: it keeps 12.5 rather than 20 minutes of
+# pre-sunset at the metered baseline, so the ramp now does lift a little before sunset-10.
+#
+# Clipping was checked and is not a concern, so do not re-raise it: the ramp has no clipping guard
+# (nextShutter.py clamps only to MAX_SHUTTER), but replaying each night's ACTUAL per-frame lift put
+# 0 of 15 nights over getBestShutter's 2500 bp budget, and peak pre-sunset clipping is unchanged on
+# 11 of 15. The ramp only lifts once the sky has already fallen faster than target -- by which
+# point it is dim and has nothing left to clip -- while the clear nights that do clip (09-10 at
+# 500 bp, 09-11 at 685 bp) receive only 0.05-0.08 stops of lift.
+#
+# TO REVERT: set this back to 0.3075. Nothing else changed.
+RAMP_GATE_FRAC=0.1926
 RAMP_DECLINE_EV_MIN=0.10
 RAMP_MAX_SHUTTER=120000
 RAMP_MAX_EV_PER_FRAME=0.04
