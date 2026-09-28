@@ -243,6 +243,18 @@ faster than target and so has nothing left to clip. Note also that some residual
 the *sky* brightening rather than the ramp (2026-09-12 shows +0.43 stops with a flat shutter at
 every gate), which no exposure rule can remove.
 
+**Measured outcome of the gate move (Sep 23-27, 5 nights, vs the 17 before it).** It did what it
+was chosen for: pre-sunset brightening fell from a mean of +0.86 stops (worst +2.77) to +0.49
+(worst +1.51). But it also lengthened the dark tail — trailing video below 0.1% brightness went
+1.6s → 3.9s, and below 1%, 8.9s → 10.6s — which the "tail unchanged" replay had missed, because
+the gate and `RAMP_MAX_SHUTTER` draw on the same fixed lift budget and an earlier start simply
+spends it sooner (ceiling at 23.7s of the 31.2s video instead of 26.2s). `RAMP_MAX_SHUTTER` was
+raised to `500000` on 2026-09-28 in response; replay puts the <0.1% tail at 1.0s, below even the
+old gate's 1.6s. **Two lessons for future tuning:** don't trust the frame-sampled replay for tail
+predictions, and always split rebound into pre- and post-sunset and check the minimum sky level
+before believing a late-run number — on 09-25 and 09-27 the "worst" episode sat at 28-30.6s where
+the level is 0.00005 linear, i.e. the sensor noise floor rather than anything visible.
+
 Two fixes were measured and **rejected**: re-anchoring `B0` at the gate zeroes the rebound
 but underexposes the sunset by up to 3 stops on exactly the worst nights, and a monotone
 no-brighten clamp is strictly worse than shrinking the gate. Note the ratchet cannot
@@ -252,7 +264,7 @@ prevent brightening caused by the *sky* brightening -- only the shutter is ratch
 | --- | --- | --- |
 | `RAMP_GATE_FRAC` | `0.1926` | fraction of the run held flat at the calibrated baseline before any lift, keeping the bright pre-sunset exposed as metered. Lands on frame 150 = 12.5 min in = ~sunset−17.5. **It is a fraction of the run, so changing `-n` moves the gate in absolute time — re-derive it if the run length changes** (`nextShutter.py` lifts from `int(GATE_FRAC * (n-1))`). Measured 2026-09-21 over Sep 4–18: this **is** the binding constraint — the ramp lifts on the first frame it is allowed to on 13 of 15 nights, and the deficit accumulated while gated is what it then sprints to close. Lowered from `0.3075` (frame 240) on 2026-09-23 to shrink that rebound; see the table below. |
 | `RAMP_DECLINE_EV_MIN` | `0.10` | target on-screen decline rate (EV/min). **The main shape dial** — lower gives a brighter, longer dusk but more risk the scene stops visibly dimming. Note this is a rate from *run start*, so it multiplies out over the run: 0.18 permitted a 9-stop fall across 50 min and left the ramp inert (see SunsetCam.sh). |
-| `RAMP_MAX_SHUTTER` | `120000` | absolute ceiling (us). The one term that does *not* scale with the baseline. ~~Measured 2026-08-25: not the binding constraint.~~ **That reading is stale** — it was taken on the old `-n 600` runs. Since `-n 780` went in the ramp reaches this ceiling on **15 of 15** nights (Sep 4–18), typically around frame 650 (~26s into the 31.2s video), after which the dusk fades naturally. Raising it to 250000 only drops that to 13/15 and changes nothing else measurable, so it binds but does no harm. |
+| `RAMP_MAX_SHUTTER` | `500000` | absolute ceiling (us). The one term that does *not* scale with the baseline. ~~Measured 2026-08-25: not the binding constraint.~~ **That reading is stale** — it was taken on the old `-n 600` runs. At `-n 780` the ramp reached the old 120000 ceiling on **15 of 15** nights, after which the dusk fell unassisted. **This dial and `RAMP_GATE_FRAC` share one lift budget**, so moving the gate earlier exhausted the ceiling sooner and lengthened the black tail; raised to `500000` on 2026-09-28 to buy it back. Capture timing verified live: 2.26s wall at 500000us plus 0.72s metering against a 5.00s per-frame budget. |
 | `RAMP_MAX_EV_PER_FRAME` | `0.04` | per-frame rate limit. With `-i 5` this caps lift at 0.48 EV/min. It must stay above the decline target or the rate limit, not the target, becomes what gates the ramp. |
 | `RAMP_SMOOTH_FRAMES` | `5` | frames of causal smoothing on the sky measurement, so moving cloud doesn't drive the loop. |
 

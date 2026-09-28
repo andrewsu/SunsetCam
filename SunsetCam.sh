@@ -112,7 +112,20 @@ level=0
 # TO REVERT: set this back to 0.3075. Nothing else changed.
 RAMP_GATE_FRAC=0.1926
 RAMP_DECLINE_EV_MIN=0.10
-RAMP_MAX_SHUTTER=120000
+# Raised 2026-09-28: 120000 -> 500000. The gate move above lengthened the black tail at the end of
+# the video (trailing video below 0.1% brightness went 1.6s -> 3.9s, measured Sep 23-27 vs the 17
+# nights before). Cause: THE GATE AND THIS CEILING SHARE ONE LIFT BUDGET. Headroom from the metered
+# baseline to this ceiling is fixed (~6.8 stops at a 1061us baseline), so starting the lift earlier
+# does not create capacity, it exhausts it sooner -- the ceiling arrived at 23.7s of the 31.2s video
+# instead of 26.2s, and past the ceiling the scene falls at the full natural 0.33-0.43 EV/min with
+# nothing compensating. Replaying the 5 new-gate nights puts the <0.1% tail at 1.0s here (vs 3.9s at
+# 120000 and 1.6s under the old gate), so this buys back the tail without giving up the pre-sunset
+# gain. Timing verified live on this Pi, not estimated: a 500000us capture costs 2.26s wall and
+# nextShutter.py metering 0.72s, ~3.0s against the 5.00s per-frame budget; measured cadence over the
+# Sep 26/27 runs was 5.00s with zero drift. 1000000us also fits (2.80s) if more is ever needed.
+# Watch for long-exposure noise and hot pixels in the dusk frames -- that is the risk this trades for.
+# TO REVERT: set this back to 120000.
+RAMP_MAX_SHUTTER=500000
 RAMP_MAX_EV_PER_FRAME=0.04
 RAMP_SMOOTH_FRAMES=5
 
